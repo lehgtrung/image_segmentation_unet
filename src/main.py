@@ -3,7 +3,7 @@ import torch
 import torch.nn as nn
 from torch.autograd import Variable
 from dataset import DRIVEDataset
-from losses import ContourLoss, BinaryCrossEntropyLoss, DiceLoss
+from losses import ContourLoss, BinaryCrossEntropyLoss2d, DiceLoss
 from unet import UNet1024
 from original_unet import OriginalUnet
 from PIL import Image
@@ -47,7 +47,10 @@ def metric_calculator(predictions, masks):
             elif 'PIL' in str(type(item)):
                 item = np.array(item)
             elif 'torch' in str(type(item)):
-                item = item.numpy()
+                if torch.cuda.is_available():
+                    item = item.cpu().numpy()
+                else:
+                    item = item.numpy()
             np_ims.append(item)
 
         compare = np.equal(np_ims[0], np_ims[1])
@@ -133,7 +136,7 @@ def main():
             range(torch.cuda.device_count()))).cuda()
 
     if lossf == 'bce':
-        criterion = BinaryCrossEntropyLoss()
+        criterion = BinaryCrossEntropyLoss2d()
     elif lossf == 'dice':
         criterion = DiceLoss()
     elif lossf == 'contour':

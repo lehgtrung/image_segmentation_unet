@@ -22,15 +22,16 @@ class DiceLoss(nn.Module):
         return score
 
 
-class BinaryCrossEntropyLoss(nn.Module):
-    def __init__(self):
-        super(BinaryCrossEntropyLoss, self).__init__()
+class BinaryCrossEntropyLoss2d(nn.Module):
+    def __init__(self, weight=None, size_average=True):
+        super(BinaryCrossEntropyLoss2d, self).__init__()
+        self.bce_loss = nn.BCELoss(weight, size_average)
 
-    def forward(self, preds, targets):
-        probs = torch.sigmoid(preds)
-        m1 = probs.view(-1)
-        m2 = probs.view(-1)
-        return F.binary_cross_entropy(m1, m2)
+    def forward(self, logits, targets):
+        probs = F.sigmoid(logits)
+        probs_flat = probs.view(-1)  # Flatten
+        targets_flat = targets.view(-1)  # Flatten
+        return self.bce_loss(probs_flat, targets_flat)
 
 
 def get_length(phi, eps=1e-5):
