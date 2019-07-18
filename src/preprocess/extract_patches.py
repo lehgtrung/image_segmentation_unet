@@ -1,11 +1,11 @@
 import numpy as np
 import random
 
-from help_functions import load_hdf5
-from help_functions import visualize
-from help_functions import group_images
+from .help_functions import load_hdf5
+from .help_functions import visualize
+from .help_functions import group_images
 
-from pre_processing import my_PreProc
+from .pre_processing import my_PreProc
 from PIL import Image
 
 # To select the same images
@@ -39,7 +39,7 @@ def get_data_training(DRIVE_train_imgs_original,
 
     train_imgs = train_imgs[:, :, 9:574, :]  # cut bottom and top so now it is 565*565
     train_masks = train_masks[:, :, 9:574, :]  # cut bottom and top so now it is 565*565
-    data_consistency_check(train_imgs,train_masks)
+    data_consistency_check(train_imgs, train_masks)
 
     # check masks are within 0-1
     assert np.min(train_masks) == 0 and np.max(train_masks) == 1
@@ -369,6 +369,8 @@ def paint_border(data, patch_h, patch_w):
         new_img_w = img_w
     else:
         new_img_w = ((int(img_w)/int(patch_w))+1)*patch_w
+    new_img_h = int(new_img_h)
+    new_img_w = int(new_img_w)
     new_data = np.zeros((data.shape[0], data.shape[1], new_img_h, new_img_w))
     new_data[:, :, 0:img_h, 0:img_w] = data[:, :, :, :]
     return new_data
