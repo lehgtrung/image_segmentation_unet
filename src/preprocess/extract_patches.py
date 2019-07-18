@@ -11,7 +11,7 @@ from PIL import Image
 # To select the same images
 # random.seed(10)
 
-#------------Path of the images --------------------------------------------------------------
+# ------------Path of the images --------------------------------------------------------------
 # train
 DRIVE_train_imgs_original = "../DRIVE_datasets_training_testing/DRIVE_dataset_imgs_train.hdf5"
 DRIVE_train_groudTruth = "../DRIVE_datasets_training_testing/DRIVE_dataset_groundTruth_train.hdf5"
@@ -20,7 +20,7 @@ patch_height = 48
 patch_width = 48
 N_subimgs = 190000
 inside_FOV = True
-#---------------------------------------------------------------------------------------------
+# ---------------------------------------------------------------------------------------------
 
 
 # Load the original data and return the extracted patches for training/testing
