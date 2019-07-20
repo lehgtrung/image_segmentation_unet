@@ -1,7 +1,6 @@
 
 import torch
 import torch.nn as nn
-import torch.nn.functional as F
 import numpy as np
 
 
@@ -10,15 +9,17 @@ class DiceLoss(nn.Module):
         super(DiceLoss, self).__init__()
 
     def forward(self, preds, targets):
+        preds = preds.squeeze(1)
+        targets = targets.squeeze(1)
         smooth = 1
-        batch_size = targets.size(0)
+        num = targets.size(0)
         probs = torch.sigmoid(preds)
-        m1 = probs.view(batch_size, -1)
-        m2 = targets.view(batch_size, -1)
+        m1 = probs.view(num, -1)
+        m2 = targets.view(num, -1)
         intersection = (m1 * m2)
 
         score = 2. * (intersection.sum(1) + smooth) / (m1.sum(1) + m2.sum(1) + smooth)
-        score = 1 - score.sum() / batch_size
+        score = 1 - score.sum() / num
         return score
 
 
@@ -27,21 +28,21 @@ class BinaryCrossEntropyLoss2d(nn.Module):
         super(BinaryCrossEntropyLoss2d, self).__init__()
         self.bce_loss = nn.BCELoss(weight, size_average)
 
-    def forward(self, logits, targets):
-        probs = F.sigmoid(logits)
-        probs_flat = probs.view(-1)  # Flatten
-        targets_flat = targets.view(-1)  # Flatten
+    def forward(self, preds, targets):
+        probs = torch.sigmoid(preds)
+        probs_flat = probs.view(-1)
+        targets_flat = targets.view(-1)
         return self.bce_loss(probs_flat, targets_flat)
 
 
-def get_length(phi, eps=1e-5):
+def get_length(phi):
     grad_x = phi[:, :, 1:, :] - phi[:, :, :-1, :]
     grad_y = phi[:, :, :, 1:] - phi[:, :, :, :-1]
 
     grad_x = grad_x[:, :, 1:, :-2]**2
     grad_y = grad_y[:, :, :-2, 1:]**2
     grad = grad_x + grad_y
-    grad = torch.sqrt(grad + eps).mean(dim=-1).mean(dim=-1)
+    grad = torch.sqrt(grad + 1e-5).mean(dim=-1).mean(dim=-1)
     return grad
 
 
@@ -60,14 +61,11 @@ class ContourLoss(nn.Module):
 
     def forward(self, preds, targets):
         probs = torch.sigmoid(preds)
-        c1 = torch.tensor([[[1.0]]], dtype=torch.float32)
-        c2 = torch.tensor([[[0.0]]], dtype=torch.float32)
-        if torch.cuda.is_available():
-            c1 = c1.cuda()
-            c2 = c2.cuda()
-        contour_len = get_length(probs, targets)
-        force_inside = (probs - c1.expand_as(probs)).pow(2).mul(targets).mean(-1).mean(-1)
-        force_outside = (probs - c2.expand_as(probs)).pow(2).mul(1.0 - targets).mean(-1).mean(-1)
+        c1 = 1.0
+        c2 = 0.0
+        contour_len = get_length(probs)
+        force_inside = (probs - c1).pow(2).mul(targets).mean(-1).mean(-1)
+        force_outside = (probs - c2).pow(2).mul(1.0 - targets).mean(-1).mean(-1)
         force = contour_len + force_inside + force_outside
         return torch.mean(force)
 

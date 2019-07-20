@@ -27,16 +27,16 @@ def rgb2gray(rgb):
 def group_images(data, per_row):
     assert data.shape[0] % per_row == 0
     assert data.shape[1] == 1 or data.shape[1] == 3
-    data = np.transpose(data,(0,2,3,1))  # corect format for imshow
+    data = np.transpose(data, (0, 2, 3, 1))  # corect format for imshow
     all_stripe = []
     for i in range(int(data.shape[0]/per_row)):
         stripe = data[i*per_row]
         for k in range(i*per_row+1, i*per_row+per_row):
-            stripe = np.concatenate((stripe,data[k]),axis=1)
+            stripe = np.concatenate((stripe, data[k]), axis=1)
         all_stripe.append(stripe)
     totimg = all_stripe[0]
-    for i in range(1,len(all_stripe)):
-        totimg = np.concatenate((totimg,all_stripe[i]),axis=0)
+    for i in range(1, len(all_stripe)):
+        totimg = np.concatenate((totimg, all_stripe[i]), axis=0)
     return totimg
 
 
@@ -80,11 +80,11 @@ def masks_Unet(masks):
 def pred_to_imgs(pred, patch_height, patch_width, mode="original"):
     assert len(pred.shape) == 3  # 3D array: (Npatches,height*width,2)
     assert pred.shape[2] == 2  # check the classes are 2
-    pred_images = np.empty((pred.shape[0],pred.shape[1]))  # (Npatches,height*width)
+    pred_images = np.empty((pred.shape[0], pred.shape[1]))  # (Npatches,height*width)
     if mode == "original":
         for i in range(pred.shape[0]):
             for pix in range(pred.shape[1]):
-                pred_images[i,pix]=pred[i,pix,1]
+                pred_images[i, pix] = pred[i, pix, 1]
     elif mode == "threshold":
         for i in range(pred.shape[0]):
             for pix in range(pred.shape[1]):
@@ -95,5 +95,5 @@ def pred_to_imgs(pred, patch_height, patch_width, mode="original"):
     else:
         print("mode " + str(mode) + " not recognized, it can be 'original' or 'threshold'")
         exit()
-    pred_images = np.reshape(pred_images,(pred_images.shape[0], 1, patch_height, patch_width))
+    pred_images = np.reshape(pred_images, (pred_images.shape[0], 1, patch_height, patch_width))
     return pred_images
