@@ -6,7 +6,7 @@ from dataset import DRIVEDataset
 from losses import ContourLoss, BinaryCrossEntropyLoss2d, DiceLoss
 from unet import UNet1024
 from preprocess.extract_patches import recompone, kill_border
-from preprocess.help_functions import visualize, group_images
+from preprocess.help_functions import visualize, group_images, load_hdf5
 from PIL import Image
 import argparse
 import numpy as np
@@ -21,12 +21,14 @@ DRIVE_train_groudTruth = "../DRIVE_datasets_training_testing/DRIVE_dataset_groun
 
 DRIVE_test_imgs_original = "../DRIVE_datasets_training_testing/DRIVE_dataset_imgs_test.hdf5"
 DRIVE_test_groundTruth = "../DRIVE_datasets_training_testing/DRIVE_dataset_groundTruth_test.hdf5"
+DRIVE_test_border_masks = "../DRIVE_datasets_training_testing/DRIVE_dataset_borderMasks_test.hdf5"
 
 patch_height = 48
 patch_width = 48
 N_subimgs = 190000
 # N_subimgs = 200
 inside_FOV = False
+test_border_masks = load_hdf5(DRIVE_test_border_masks)
 # ---------------------------------------------------------------------------------------------
 
 
@@ -173,7 +175,7 @@ def validate_model(model, data_test, criterion, dirname, device):
     pred_imgs = recompone(all_outputs, 13, 12)  # predictions
     orig_imgs = recompone(all_images, 13, 12)  # originals
     gtruth_masks = recompone(all_masks, 13, 12)  # masks
-    # kill_border(pred_imgs, test_border_masks)
+    kill_border(pred_imgs, test_border_masks)
     # back to original dimensions
     orig_imgs = orig_imgs[:, :, 0:565, 0:584]
     pred_imgs = pred_imgs[:, :, 0:565, 0:584]
@@ -264,7 +266,7 @@ def main():
             values = [i + 1, train_loss, train_acc, val_loss, val_acc]
             export_history(header, values, save_dir, save_file_name)
 
-        if (i+1) % 3 == 0:  # save model every 10 epoch
+        if (i+1) % 5 == 0:  # save model every 10 epoch
             save_models(model, model_save_dir, i+1)
 
 
