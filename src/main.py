@@ -5,7 +5,8 @@ from torch.autograd import Variable
 from dataset import DRIVEDataset
 from losses import ContourLoss, BinaryCrossEntropyLoss2d, DiceLoss
 from unet import UNet1024
-from original_unet import OriginalUnet
+from preprocess.extract_patches import recompone, kill_border
+from preprocess.help_functions import visualize, group_images
 from PIL import Image
 import argparse
 import numpy as np
@@ -24,6 +25,7 @@ DRIVE_test_groundTruth = "../DRIVE_datasets_training_testing/DRIVE_dataset_groun
 patch_height = 48
 patch_width = 48
 N_subimgs = 190000
+# N_subimgs = 200
 inside_FOV = False
 # ---------------------------------------------------------------------------------------------
 
@@ -133,11 +135,14 @@ def train_model(epoch, model, data_train, criterion, optimizer):
     return sum(losses)/len(losses), sum(accuracies)/len(accuracies)
 
 
-def test_model(model, data_test, criterion, dirname=None):
+def validate_model(model, data_test, criterion, dirname=None):
     model.eval()
     losses = []
     accuracies = []
-    # os.makedirs(dirname, exist_ok=True)
+    all_outputs = []
+    all_images = []
+    all_masks = []
+    os.makedirs(dirname, exist_ok=True)
     for batch, (images, masks) in enumerate(data_test):
         with torch.no_grad():
             if torch.cuda.is_available():
@@ -148,16 +153,34 @@ def test_model(model, data_test, criterion, dirname=None):
             outputs = model(images)
             loss = criterion(outputs, masks)
 
-            thresholded_outputs = (outputs > 0.0).float()#.cpu().numpy()
-            for output in thresholded_outputs:
-                #TODO: output predicted images
-                pass
+            thresholded_outputs = (outputs > 0.0).float()
+            all_outputs.append(thresholded_outputs.detach().cpu())
+            all_images.append(images)
+            all_masks.append(masks)
 
             accuracy = metric_calculator(thresholded_outputs, masks)
             losses.append(loss.item())
             accuracies.append(accuracy)
             if batch % 1 == 0:
                 print('Batch', str(batch + 1), 'Val loss:', loss.item(), "Val acc", accuracy)
+
+    # TODO: output predicted images
+    # print(all_outputs)
+    all_outputs = torch.cat(all_outputs)
+    all_images = torch.cat(all_images)
+    all_masks = torch.cat(all_masks)
+    pred_imgs = recompone(all_outputs, 13, 12)  # predictions
+    orig_imgs = recompone(all_images, 13, 12)  # originals
+    gtruth_masks = recompone(all_masks, 13, 12)  # masks
+    # kill_border(pred_imgs, test_border_masks)
+    # back to original dimensions
+    orig_imgs = orig_imgs[:, :, 0:565, 0:584]
+    pred_imgs = pred_imgs[:, :, 0:565, 0:584]
+    gtruth_masks = gtruth_masks[:, :, 0:565, 0:584]
+    visualize(group_images(orig_imgs, 1), dirname + "all_originals")
+    visualize(group_images(pred_imgs, 1), dirname + "all_predictions")
+    visualize(group_images(gtruth_masks, 1), dirname + "all_masks")
+
     return sum(losses)/len(losses), sum(accuracies)/len(accuracies)
 
 
@@ -185,7 +208,7 @@ def main():
                                     batch_size=32, shuffle=True)
     SEM_test_load = \
         torch.utils.data.DataLoader(dataset=DRIVE_test,
-                                    batch_size=32, shuffle=True)
+                                    batch_size=32, shuffle=False)
 
     args = arg_parse()
     lossf = args.lossf.lower()
@@ -239,12 +262,12 @@ def main():
 
         # Validation every 10 epoch
         if (i+1) % 1 == 0:
-            val_loss, val_acc = test_model(model, SEM_test_load, criterion)
+            val_loss, val_acc = validate_model(model, SEM_test_load, criterion, f'../output_images/{hash_code}/{i+1}/')
             print('Epoch', str(i+1), 'Val loss:', val_loss, "val acc:", val_acc)
             values = [i + 1, train_loss, train_acc, val_loss, val_acc]
             export_history(header, values, save_dir, save_file_name)
 
-        if (i+1) % 10 == 0:  # save model every 10 epoch
+        if (i+1) % 30 == 0:  # save model every 10 epoch
             save_models(model, model_save_dir, i+1)
 
 

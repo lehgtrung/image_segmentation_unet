@@ -24,9 +24,9 @@ class DiceLoss(nn.Module):
 
 
 class BinaryCrossEntropyLoss2d(nn.Module):
-    def __init__(self, weight=None, size_average=True):
+    def __init__(self):
         super(BinaryCrossEntropyLoss2d, self).__init__()
-        self.bce_loss = nn.BCELoss(weight, size_average)
+        self.bce_loss = nn.BCELoss()
 
     def forward(self, preds, targets):
         probs = torch.sigmoid(preds)
