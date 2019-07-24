@@ -36,7 +36,8 @@ def arg_parse():
     parser.add_argument('--opt', help='Optimizer', dest='opt', default='adam', required=False)
     parser.add_argument('--hashcode', help='Hashcode for experiments', dest='hashcode', default='', required=False)
     parser.add_argument('--lr', help='Learning rate', dest='lr', default=1e-5, type=float, required=False)
-    parser.add_argument('--lossf', help='Learning rate', dest='lossf')
+    parser.add_argument('--lossf', help='Loss type', dest='lossf')
+    parser.add_argument('--gpu', help='Which gpu', dest='gpu', required=True)
     args = parser.parse_args()
     return args
 
@@ -110,14 +111,14 @@ def metric_calculator(predictions, masks):
     return total_acc / batch_size
 
 
-def train_model(epoch, model, data_train, criterion, optimizer):
+def train_model(epoch, model, data_train, criterion, optimizer, device):
     model.train()
     losses = []
     accuracies = []
     for batch, (images, masks) in enumerate(data_train):
         if torch.cuda.is_available():
-            images = images.cuda()
-            masks = masks.cuda()
+            images = images.to(device)
+            masks = masks.to(device)
         images = Variable(images)
         masks = Variable(masks)
         outputs = model(images)
@@ -135,7 +136,7 @@ def train_model(epoch, model, data_train, criterion, optimizer):
     return sum(losses)/len(losses), sum(accuracies)/len(accuracies)
 
 
-def validate_model(model, data_test, criterion, dirname=None):
+def validate_model(model, data_test, criterion, dirname, device):
     model.eval()
     losses = []
     accuracies = []
@@ -146,8 +147,8 @@ def validate_model(model, data_test, criterion, dirname=None):
     for batch, (images, masks) in enumerate(data_test):
         with torch.no_grad():
             if torch.cuda.is_available():
-                images = images.cuda()
-                masks = masks.cuda()
+                images = images.to(device)
+                masks = masks.to(device)
             images = Variable(images)
             masks = Variable(masks)
             outputs = model(images)
@@ -155,8 +156,8 @@ def validate_model(model, data_test, criterion, dirname=None):
 
             thresholded_outputs = (outputs > 0.0).float()
             all_outputs.append(thresholded_outputs.detach().cpu())
-            all_images.append(images)
-            all_masks.append(masks)
+            all_images.append(images.detach().cpu())
+            all_masks.append(masks.detach().cpu())
 
             accuracy = metric_calculator(thresholded_outputs, masks)
             losses.append(loss.item())
@@ -216,12 +217,13 @@ def main():
     opt = args.opt.lower()
     lr = args.lr
     hash_code = '_'.join(list(map(str, [args.hashcode, args.opt, args.lr, args.lossf])))
+    device = 'cuda:' + args.gpu
 
     shape = (1, 48, 48)
-    model = UNet1024(shape)
     if torch.cuda.is_available():
-        model = torch.nn.DataParallel(model, device_ids=list(
-            range(torch.cuda.device_count()))).cuda()
+        model = UNet1024(shape).to(device)
+    else:
+        model = UNet1024(shape)
 
     if lossf == 'bce':
         criterion = BinaryCrossEntropyLoss2d()
@@ -233,16 +235,10 @@ def main():
         raise ValueError('Undefined loss type')
 
     optimizer = None
-    if torch.cuda.is_available():
-        if opt == 'rmsprop':
-            optimizer = torch.optim.RMSprop(model.module.parameters(), lr=lr)
-        if opt == 'adam':
-            optimizer = torch.optim.Adam(model.module.parameters(), lr=lr)
-    else:
-        if opt == 'rmsprop':
-            optimizer = torch.optim.RMSprop(model.parameters(), lr=lr)
-        if opt == 'adam':
-            optimizer = torch.optim.Adam(model.parameters(), lr=lr)
+    if opt == 'rmsprop':
+        optimizer = torch.optim.RMSprop(model.parameters(), lr=lr)
+    if opt == 'adam':
+        optimizer = torch.optim.Adam(model.parameters(), lr=lr)
 
     # Saving History to csv
     header = ['epoch', 'train loss', 'train acc', 'val loss', 'val acc']
@@ -257,17 +253,18 @@ def main():
     print("Initializing Training!")
     for i in range(n_epochs):
         # train the model
-        train_loss, train_acc = train_model(i, model, SEM_train_load, criterion, optimizer)
+        train_loss, train_acc = train_model(i, model, SEM_train_load, criterion, optimizer, device)
         print('Epoch', str(i+1), 'Train loss:', train_loss, "Train acc", train_acc)
 
         # Validation every 10 epoch
         if (i+1) % 1 == 0:
-            val_loss, val_acc = validate_model(model, SEM_test_load, criterion, f'../output_images/{hash_code}/{i+1}/')
+            val_loss, val_acc = validate_model(model, SEM_test_load, criterion,
+                                               f'{image_save_path}/{i+1}/', device)
             print('Epoch', str(i+1), 'Val loss:', val_loss, "val acc:", val_acc)
             values = [i + 1, train_loss, train_acc, val_loss, val_acc]
             export_history(header, values, save_dir, save_file_name)
 
-        if (i+1) % 30 == 0:  # save model every 10 epoch
+        if (i+1) % 3 == 0:  # save model every 10 epoch
             save_models(model, model_save_dir, i+1)
 
 
