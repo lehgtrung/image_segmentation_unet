@@ -61,12 +61,19 @@ class ContourLoss(nn.Module):
 
     def forward(self, preds, targets):
         probs = torch.sigmoid(preds)
+
+        n_inside = targets.sum(-1).sum(-1)
+        n_outside = targets.shape[2] * targets.shape[3] - n_inside
+
+        # c1 = (probs.mul(targets).sum(-1).sum(-1) / n_inside).unsqueeze(1).unsqueeze(1).expand_as(probs)
+        # c2 = (probs.mul(1.0 - targets).sum(-1).sum(-1) / n_outside).unsqueeze(1).unsqueeze(1).expand_as(probs)
         c1 = 1.0
         c2 = 0.0
-        contour_len = get_length(probs)
-        force_inside = (probs - c1).pow(2).mul(targets).mean(-1).mean(-1)
-        force_outside = (probs - c2).pow(2).mul(1.0 - targets).mean(-1).mean(-1)
-        force = contour_len + force_inside + force_outside
+        # contour_len = get_length(heaviside(probs - 0.5))
+        force_inside = (probs - c1).pow(2).mul(targets).sum(-1).sum(-1)#.div(n_inside + 1e-7)
+        force_outside = (probs - c2).pow(2).mul(1.0 - targets).sum(-1).sum(-1)#.div(n_outside + 1e-7)
+        # force = contour_len + force_inside + force_outside
+        force = force_inside + force_outside
         return torch.mean(force)
 
 
