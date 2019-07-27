@@ -5,6 +5,10 @@ from torch.utils.data.dataset import Dataset
 from preprocess.extract_patches import get_data_training, get_data_testing
 
 
+class SSTemDataset(Dataset):
+    pass
+
+
 class DRIVEDataset(Dataset):
 
     def __init__(self, mode, img_path, groudtruth_path, height, width, n_subimgs, inside_fov=True):

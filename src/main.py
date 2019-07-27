@@ -7,9 +7,8 @@ from losses import ContourLoss, BinaryCrossEntropyLoss2d, DiceLoss
 from unet import UNet1024
 from preprocess.extract_patches import recompone, kill_border
 from preprocess.help_functions import visualize, group_images, load_hdf5
-from PIL import Image
+import metrics as mtr
 import argparse
-import numpy as np
 import os
 import csv
 
@@ -40,6 +39,7 @@ def arg_parse():
     parser.add_argument('--lr', help='Learning rate', dest='lr', default=1e-5, type=float, required=False)
     parser.add_argument('--lossf', help='Loss type', dest='lossf')
     parser.add_argument('--gpu', help='Which gpu', dest='gpu', required=True)
+    parser.add_argument('--withlen', help='With contour len', dest='withlen', required=True)
     args = parser.parse_args()
     return args
 
@@ -85,39 +85,22 @@ def save_models(model, path, epoch):
     torch.save(model, path+"/model_epoch_{0}.pwf".format(epoch))
 
 
-def metric_calculator(predictions, masks):
-    def accuracy_check(prediction, mask):
-        ims = [mask, prediction]
-        np_ims = []
-        for item in ims:
-            if 'str' in str(type(item)):
-                item = np.array(Image.open(item))
-            elif 'PIL' in str(type(item)):
-                item = np.array(item)
-            elif 'torch' in str(type(item)):
-                if torch.cuda.is_available():
-                    item = item.cpu().numpy()
-                else:
-                    item = item.numpy()
-            np_ims.append(item)
-
-        compare = np.equal(np_ims[0], np_ims[1])
-        accuracy = np.sum(compare)
-
-        return accuracy / len(np_ims[0].flatten())
-
-    batch_size = predictions.size(0)
-    total_acc = 0
-    for index in range(batch_size):
-        total_acc += accuracy_check(predictions[index], masks[index])
-    return total_acc / batch_size
+def metrics_calculator(masks, preds):
+    batch_size, masks, predictions = mtr.standardize_for_metrics(masks, preds)
+    auc_score = mtr.roc_auc(batch_size, masks, predictions)
+    accuracy_score = mtr.accuracy(batch_size, masks, predictions)
+    # jaccard_score = mtr.jaccard(batch_size, masks, predictions)
+    return auc_score, accuracy_score
 
 
 def train_model(epoch, model, data_train, criterion, optimizer, device):
     model.train()
-    losses = []
-    accuracies = []
+    epoch_loss = 0.0
+    epoch_auc = 0.0
+    epoch_accuracy = 0.0
+    n = 0.0
     for batch, (images, masks) in enumerate(data_train):
+        n += 1
         if torch.cuda.is_available():
             images = images.to(device)
             masks = masks.to(device)
@@ -129,24 +112,33 @@ def train_model(epoch, model, data_train, criterion, optimizer, device):
         loss.backward()
         optimizer.step()
 
-        accuracy = metric_calculator((outputs > 0.0).float(), masks)
-        losses.append(loss.item())
-        accuracies.append(accuracy)
-        if batch % 100 == 0:
-            print('Epoch', str(epoch + 1), 'Batch', str(batch + 1), 'Train loss:', loss.item(), "Train acc", accuracy)
+        auc, accuracy = metrics_calculator(masks.clone(), outputs.clone())
+        epoch_loss += loss.item()
 
-    return sum(losses)/len(losses), sum(accuracies)/len(accuracies)
+        epoch_auc += auc
+        epoch_accuracy += accuracy
+        if batch % 100 == 0:
+            print('Epoch', str(epoch + 1),
+                  'Batch', str(batch + 1),
+                  'Train loss:', loss.item(),
+                  'Train auc:', auc,
+                  'Train acc:', accuracy,
+                  )
+    return epoch_loss/n, epoch_auc/n, epoch_accuracy/n
 
 
 def validate_model(model, data_test, criterion, dirname, device):
     model.eval()
-    losses = []
-    accuracies = []
+    epoch_loss = 0.0
     all_outputs = []
     all_images = []
     all_masks = []
+    epoch_auc = 0.0
+    epoch_accuracy = 0.0
+    n = 0.0
     os.makedirs(dirname, exist_ok=True)
     for batch, (images, masks) in enumerate(data_test):
+        n += 1
         with torch.no_grad():
             if torch.cuda.is_available():
                 images = images.to(device)
@@ -156,19 +148,24 @@ def validate_model(model, data_test, criterion, dirname, device):
             outputs = model(images)
             loss = criterion(outputs, masks)
 
-            thresholded_outputs = (outputs > 0.0).float()
+            thresholded_outputs = (outputs > 0.5).float()
             all_outputs.append(thresholded_outputs.detach().cpu())
             all_images.append(images.detach().cpu())
             all_masks.append(masks.detach().cpu())
 
-            accuracy = metric_calculator(thresholded_outputs, masks)
-            losses.append(loss.item())
-            accuracies.append(accuracy)
+            auc, accuracy = metrics_calculator(masks.clone(), outputs.clone())
+            epoch_loss += loss.item()
+
+            epoch_auc += auc
+            epoch_accuracy += accuracy
             if batch % 1 == 0:
-                print('Batch', str(batch + 1), 'Val loss:', loss.item(), "Val acc", accuracy)
+                print('Batch', str(batch + 1),
+                      'Val loss:', loss.item(),
+                      'Val auc:', auc,
+                      'Val accuracy:', accuracy,
+                      )
 
     # TODO: output predicted images
-    # print(all_outputs)
     all_outputs = torch.cat(all_outputs)
     all_images = torch.cat(all_images)
     all_masks = torch.cat(all_masks)
@@ -184,7 +181,7 @@ def validate_model(model, data_test, criterion, dirname, device):
     visualize(group_images(pred_imgs, 1), dirname + "all_predictions")
     visualize(group_images(gtruth_masks, 1), dirname + "all_masks")
 
-    return sum(losses)/len(losses), sum(accuracies)/len(accuracies)
+    return epoch_loss / n, epoch_auc / n, epoch_accuracy / n
 
 
 def main():
@@ -220,6 +217,7 @@ def main():
     lr = args.lr
     hash_code = '_'.join(list(map(str, [args.hashcode, args.opt, args.lr, args.lossf])))
     device = 'cuda:' + args.gpu
+    withlen = args.withlen.lower() == 'true'
 
     shape = (1, 48, 48)
     if torch.cuda.is_available():
@@ -232,7 +230,7 @@ def main():
     elif lossf == 'dice':
         criterion = DiceLoss()
     elif lossf == 'contour':
-        criterion = ContourLoss()
+        criterion = ContourLoss(withlen=withlen)
     else:
         raise ValueError('Undefined loss type')
 
@@ -243,7 +241,8 @@ def main():
         optimizer = torch.optim.Adam(model.parameters(), lr=lr)
 
     # Saving History to csv
-    header = ['epoch', 'train loss', 'train acc', 'val loss', 'val acc']
+    header = ['epoch', 'train loss', 'train auc', 'train accuracy',
+              'val loss', 'val auc', 'val accuracy']
     save_file_name = f"../history/{hash_code}/history.csv"
     save_dir = f"../history/{hash_code}"
 
@@ -255,18 +254,31 @@ def main():
     print("Initializing Training!")
     for i in range(n_epochs):
         # train the model
-        train_loss, train_acc = train_model(i, model, SEM_train_load, criterion, optimizer, device)
-        print('Epoch', str(i+1), 'Train loss:', train_loss, "Train acc", train_acc)
+        train_loss, train_auc, train_acc = train_model(i, model, SEM_train_load,
+                                                       criterion, optimizer, device)
+        print('Epoch', str(i+1),
+              'Train loss:', train_loss,
+              'Train auc:', train_auc,
+              'Train acc:', train_acc,
+              # 'Train jaccard:', train_jaccard
+              )
 
-        # Validation every 10 epoch
         if (i+1) % 1 == 0:
-            val_loss, val_acc = validate_model(model, SEM_test_load, criterion,
-                                               f'{image_save_path}/{i+1}/', device)
-            print('Epoch', str(i+1), 'Val loss:', val_loss, "val acc:", val_acc)
-            values = [i + 1, train_loss, train_acc, val_loss, val_acc]
+            val_loss, val_auc, val_acc = validate_model(model, SEM_test_load, criterion,
+                                                        f'{image_save_path}/{i+1}/', device)
+            print('Epoch', str(i+1),
+                  'Val loss:', val_loss,
+                  'Val auc:', val_auc,
+                  'Val acc:', val_acc,
+                  # 'Val jaccard:', val_jaccard
+                  )
+            # values = [i + 1, train_loss, train_auc, train_acc, train_jaccard,
+            #           val_loss, val_auc, val_acc, val_jaccard]
+            values = [i + 1, train_loss, train_auc, train_acc,
+                      val_loss, val_auc, val_acc]
             export_history(header, values, save_dir, save_file_name)
 
-        if (i+1) % 5 == 0:  # save model every 10 epoch
+        if (i+1) % 2 == 0:  # save model every 1 epoch
             save_models(model, model_save_dir, i+1)
 
 
