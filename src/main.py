@@ -33,13 +33,14 @@ test_border_masks = load_hdf5(DRIVE_test_border_masks)
 
 def arg_parse():
     parser = argparse.ArgumentParser()
-    parser.add_argument('--epochs', help='Number of epochs', dest='epochs', type=int, default=150, required=False)
+    parser.add_argument('--epochs', help='Number of epochs', dest='epochs', type=int, default=100, required=False)
     parser.add_argument('--opt', help='Optimizer', dest='opt', default='adam', required=False)
     parser.add_argument('--hashcode', help='Hashcode for experiments', dest='hashcode', default='', required=False)
     parser.add_argument('--lr', help='Learning rate', dest='lr', default=1e-5, type=float, required=False)
     parser.add_argument('--lossf', help='Loss type', dest='lossf')
     parser.add_argument('--gpu', help='Which gpu', dest='gpu', required=True)
     parser.add_argument('--withlen', help='With contour len', dest='withlen', required=True)
+    parser.add_argument('--mu', help='Value of mu', dest='mu', required=True, type=float)
     args = parser.parse_args()
     return args
 
@@ -218,6 +219,7 @@ def main():
     hash_code = '_'.join(list(map(str, [args.hashcode, args.opt, args.lr, args.lossf])))
     device = 'cuda:' + args.gpu
     withlen = args.withlen.lower() == 'true'
+    mu = args.mu
 
     shape = (1, 48, 48)
     if torch.cuda.is_available():
@@ -230,7 +232,7 @@ def main():
     elif lossf == 'dice':
         criterion = DiceLoss()
     elif lossf == 'contour':
-        criterion = ContourLoss(withlen=withlen)
+        criterion = ContourLoss(withlen=withlen, mu=mu, device=device)
     else:
         raise ValueError('Undefined loss type')
 

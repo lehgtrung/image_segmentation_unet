@@ -61,9 +61,9 @@ class UNet1024(nn.Module):
         channels, height, width = in_shape
 
         # 1024
-        self.down1 = StackEncoder(channels, 24, kernel_size=3)  # 512
-        self.down2 = StackEncoder(24, 64, kernel_size=3)  # 256
-        self.down3 = StackEncoder(64, 128, kernel_size=3)  # 128
+        self.down1 = StackEncoder(channels, 24, kernel_size=3)
+        self.down2 = StackEncoder(24, 64, kernel_size=3)
+        self.down3 = StackEncoder(64, 128, kernel_size=3)
 
         self.center = nn.Sequential(
             nn.Conv2d(128, 128, kernel_size=3, padding=1),
@@ -71,9 +71,9 @@ class UNet1024(nn.Module):
 
         # 8
         # x_big_channels, x_channels, y_channels
-        self.up3 = StackDecoder(128, 128, 64, kernel_size=3)  # 128
-        self.up2 = StackDecoder(64, 64, 24, kernel_size=3)  # 256
-        self.up1 = StackDecoder(24, 24, 24, kernel_size=3)  # 512
+        self.up3 = StackDecoder(128, 128, 64, kernel_size=3)
+        self.up2 = StackDecoder(64, 64, 24, kernel_size=3)
+        self.up1 = StackDecoder(24, 24, 24, kernel_size=3)
         self.classify = nn.Conv2d(24, 1, kernel_size=1, bias=True)
 
     def forward(self, x):

@@ -27,16 +27,24 @@ def plotloss(csvfile, filename):
     # Initiation
     epoch = loss_values.iloc[:, 0]
     tr_loss = loss_values.iloc[:, 1]
-    tr_acc = loss_values.iloc[:, 2]
-    val_loss = np.asarray(loss_values.iloc[:, 3])
-    val_acc = np.asarray(loss_values.iloc[:, 4])
+    tr_auc = loss_values.iloc[:, 2]
+    tr_acc = loss_values.iloc[:, 3]
+    val_loss = np.asarray(loss_values.iloc[:, 4])
+    val_auc = np.asarray(loss_values.iloc[:, 5])
+    val_acc = np.asarray(loss_values.iloc[:, 6])
 
     # Reduce the volume of data
     epoch_skip = epoch[::5]
     tr_loss_skip = tr_loss[::5]
+    tr_auc_skip = tr_auc[::5]
     tr_acc_skip = tr_acc[::5]
     val_loss_skip = val_loss[::5]
+    val_auc_skip = val_auc[::5]
     val_acc_skip = val_acc[::5]
+
+    # if tr_loss_skip[0] > 100:
+    #     tr_loss_skip = (tr_loss_skip - np.min(tr_loss_skip)) / (np.max(tr_loss_skip) - np.min(tr_loss_skip))
+    #     val_loss_skip = (val_loss_skip - np.min(val_loss_skip)) / (np.max(val_loss_skip) - np.min(val_loss_skip))
 
     fig, ax1 = plt.subplots(figsize=(8, 6))
     ax2 = ax1.twinx()
@@ -44,7 +52,7 @@ def plotloss(csvfile, filename):
     # Label and color the axes
     ax1.set_xlabel('Epoch', fontsize=16)
     ax1.set_ylabel('Loss', fontsize=16, color='black')
-    ax2.set_ylabel('Accuracy', fontsize=16, color='black')
+    ax2.set_ylabel('Accuracy/AUC', fontsize=16, color='black')
 
     # Plot valid/train losses
     ax1.plot(epoch_skip, tr_loss_skip, linewidth=2,
@@ -57,11 +65,15 @@ def plotloss(csvfile, filename):
         label.set_color('#c92508')
         label.set_size(12)
 
-    # Plot valid/trian accuracy
+    # Plot valid/trian auc/accuracy
     ax2.plot(epoch_skip, tr_acc_skip, linewidth=2, ls='--',
              color='#2348ff', label='Train Accuracy')
     ax2.plot(epoch_skip, val_acc_skip, linewidth=2,
              color='#2348ff', label='Validation Accuracy')
+    ax2.plot(epoch_skip, tr_auc_skip, linewidth=2,
+             color='#d0d624', label='Train AUC', ls='--')
+    ax2.plot(epoch_skip, val_auc_skip, linewidth=2,
+             color='#d0d624', label='Validation AUC')
     ax2.spines['right'].set_color('#2348ff')
     # Coloring the ticks
     for label in ax2.get_yticklabels():

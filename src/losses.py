@@ -1,6 +1,7 @@
 
 import torch
 import torch.nn as nn
+import torch.nn.functional as F
 import numpy as np
 
 
@@ -33,18 +34,23 @@ class BinaryCrossEntropyLoss2d(nn.Module):
         return self.bce_loss(probs_flat, targets_flat)
 
 
-def get_length(phi):
-    grad_x = phi[:, :, 1:, :] - phi[:, :, :-1, :]
-    grad_y = phi[:, :, :, 1:] - phi[:, :, :, :-1]
+def get_length(phi, device):
+    conv_filter_x = torch.FloatTensor([[[[-1, 0, 1],
+                                       [-2, 0, 2],
+                                       [-1, 0, 1]]]]).to(device)
+    conv_filter_y = torch.FloatTensor([[[[-1, -2, -1],
+                                       [0, 0, 0],
+                                       [1, 2, 1]]]]).to(device)
 
-    grad_x = grad_x[:, :, 1:, :-2]**2
-    grad_y = grad_y[:, :, :-2, 1:]**2
-    grad = grad_x + grad_y
-    grad = torch.sqrt(grad + 1e-5).sum(dim=-1).sum(dim=-1)
-    return grad
+    grad_x = F.conv2d(phi, conv_filter_x, padding=1)
+    grad_y = F.conv2d(phi, conv_filter_y, padding=1)
+
+    grad = (grad_x.pow(2) + grad_y.pow(2) + 1e-5).sqrt()
+    dd = delta_dirac(phi - 0.5)
+    return torch.mul(grad, dd).sum(-1).sum(-1)
 
 
-def heaviside(x, eps=1e-5, pi=np.pi):
+def heaviside1(x, eps=1, pi=np.pi):
     res = x.clone()
     res[x > eps] = 1.0
     res[x < -eps] = 0.0
@@ -53,20 +59,32 @@ def heaviside(x, eps=1e-5, pi=np.pi):
     return res
 
 
+def heaviside2(x, eps=1e-5, pi=np.pi):
+    return 1/2 * (1 + 2/pi * torch.atan(x.div(eps)))
+
+
+def delta_dirac(x, eps=1, pi=np.pi):
+    return eps / (pi * (eps**2 + x.pow(2)))
+
+
 class ContourLoss(nn.Module):
-    def __init__(self, withlen=True):
+    def __init__(self, device, mu, withlen=True):
         self.withlen = withlen
+        self.device = device
+        self.mu = mu
         super(ContourLoss, self).__init__()
 
     def forward(self, preds, targets):
-        # c1 = (probs.mul(targets).sum(-1).sum(-1) / n_inside).unsqueeze(1).unsqueeze(1).expand_as(probs)
-        # c2 = (probs.mul(1.0 - targets).sum(-1).sum(-1) / n_outside).unsqueeze(1).unsqueeze(1).expand_as(probs)
+        # n_inside = targets.sum(-1).sum(-1)
+        # n_outside = (1 - targets).sum(-1).sum(-1)
+        # c1 = preds.mul(targets).sum(-1).sum(-1).div(n_inside + 1e-5).unsqueeze(1).unsqueeze(1).expand_as(preds)
+        # c2 = preds.mul(1.0 - targets).sum(-1).sum(-1).div(n_outside + 1e-5).unsqueeze(1).unsqueeze(1).expand_as(preds)
         c1 = 1.0
         c2 = 0.0
         force_inside = (preds - c1).pow(2).mul(targets).sum(-1).sum(-1)
         force_outside = (preds - c2).pow(2).mul(1.0 - targets).sum(-1).sum(-1)
         if self.withlen:
-            contour_len = get_length(preds)
+            contour_len = self.mu * get_length(preds, self.device)
             force = contour_len + force_inside + force_outside
         else:
             force = force_inside + force_outside
