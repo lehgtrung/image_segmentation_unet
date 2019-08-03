@@ -3,6 +3,7 @@ import torch
 import torch.nn as nn
 import torch.nn.functional as F
 import numpy as np
+from torch.autograd import Variable
 
 
 class DiceLoss(nn.Module):
@@ -75,10 +76,6 @@ class ContourLoss(nn.Module):
         super(ContourLoss, self).__init__()
 
     def forward(self, preds, targets):
-        # n_inside = targets.sum(-1).sum(-1)
-        # n_outside = (1 - targets).sum(-1).sum(-1)
-        # c1 = preds.mul(targets).sum(-1).sum(-1).div(n_inside + 1e-5).unsqueeze(1).unsqueeze(1).expand_as(preds)
-        # c2 = preds.mul(1.0 - targets).sum(-1).sum(-1).div(n_outside + 1e-5).unsqueeze(1).unsqueeze(1).expand_as(preds)
         c1 = 1.0
         c2 = 0.0
         force_inside = (preds - c1).pow(2).mul(targets).sum(-1).sum(-1)
@@ -90,4 +87,21 @@ class ContourLoss(nn.Module):
             force = force_inside + force_outside
         return torch.mean(force)
 
+
+class FocalLoss(nn.Module):
+    def __init__(self, alpha=1, gamma=2, logits=False):
+        super(FocalLoss, self).__init__()
+        self.alpha = alpha
+        self.gamma = gamma
+        self.logits = logits
+
+    def forward(self, inputs, targets):
+        if self.logits:
+            BCE_loss = F.binary_cross_entropy_with_logits(inputs, targets)
+        else:
+            BCE_loss = F.binary_cross_entropy(inputs, targets)
+        pt = torch.exp(-BCE_loss)
+        F_loss = self.alpha * (1 - pt)**self.gamma * BCE_loss
+
+        return torch.mean(F_loss)
 

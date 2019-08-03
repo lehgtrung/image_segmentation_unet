@@ -1,13 +1,9 @@
 import torch
 import torch.nn as nn
 from torch.autograd import Variable
-from dataset import DRIVEDataset
-from losses import ContourLoss, BinaryCrossEntropyLoss2d, DiceLoss
-from unet import UNet1024
 from preprocess.extract_patches import recompone, kill_border
 from preprocess.help_functions import visualize, group_images, load_hdf5
 import metrics as mtr
-import argparse
 import os
 import csv
 

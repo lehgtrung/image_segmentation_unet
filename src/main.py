@@ -1,6 +1,11 @@
 
 from utils import *
 
+from dataset import DRIVEDataset
+from losses import ContourLoss, BinaryCrossEntropyLoss2d, DiceLoss, FocalLoss
+from unet import UNet1024
+import argparse
+
 # ------------Path of the images --------------------------------------------------------------
 # train
 DRIVE_train_imgs_original = "../DRIVE_datasets_training_testing/DRIVE_dataset_imgs_train.hdf5"
@@ -88,6 +93,8 @@ def main():
         criterion = DiceLoss()
     elif lossf == 'contour':
         criterion = ContourLoss(withlen=withlen, mu=mu, device=device)
+    elif lossf == 'focal':
+        criterion = FocalLoss()
     else:
         raise ValueError('Undefined loss type')
 
