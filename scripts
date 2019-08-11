@@ -1,0 +1,4 @@
+# Test model script
+python main.py --mode test\
+ --modelpath ../history/AUG10_normed_nolength_adam_1e-05_contour/saved_models/model_epoch_150.pth\
+  --hashcode AUG10_normed_nolength_adam_1e-05_contour --gpu 2

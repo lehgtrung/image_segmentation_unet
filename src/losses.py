@@ -69,7 +69,8 @@ def delta_dirac(x, eps=1, pi=np.pi):
 
 
 class ContourLoss(nn.Module):
-    def __init__(self, device, mu, withlen=True):
+    def __init__(self, device, mu, normed, withlen):
+        self.normed = normed
         self.withlen = withlen
         self.device = device
         self.mu = mu
@@ -78,8 +79,12 @@ class ContourLoss(nn.Module):
     def forward(self, preds, targets):
         c1 = 1.0
         c2 = 0.0
+        eps = 1e-7
         force_inside = (preds - c1).pow(2).mul(targets).sum(-1).sum(-1)
         force_outside = (preds - c2).pow(2).mul(1.0 - targets).sum(-1).sum(-1)
+        if self.normed:
+            force_inside = (force_inside + eps)/(targets.sum(-1).sum(-1) + eps)
+            force_outside = (force_outside + eps)/((1 - targets).sum(-1).sum(-1) + eps)
         if self.withlen:
             contour_len = self.mu * get_length(preds, self.device)
             force = contour_len + force_inside + force_outside
@@ -102,6 +107,6 @@ class FocalLoss(nn.Module):
             BCE_loss = F.binary_cross_entropy(inputs, targets)
         pt = torch.exp(-BCE_loss)
         F_loss = self.alpha * (1 - pt)**self.gamma * BCE_loss
-
         return torch.mean(F_loss)
+
 

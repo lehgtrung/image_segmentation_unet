@@ -10,6 +10,8 @@ def standardize_for_metrics(masks, preds):
     if len(preds.shape) == 4:
         preds = preds.squeeze(1)
         masks = masks.squeeze(1)
+    if isinstance(masks, np.ndarray):
+        return batch_size, masks, preds
     if torch.cuda.is_available():
         preds = preds.detach().cpu().numpy()
         masks = masks.detach().cpu().numpy()
@@ -58,3 +60,6 @@ def jaccard(batch_size, masks, preds, cutoff=0.5):
         total_ji += iou_score
     return total_ji / batch_size
 
+
+def compute_best_cutoff(batch_size, masks, preds):
+    pass

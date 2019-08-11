@@ -178,3 +178,46 @@ def test_model(model, data_test, criterion, test_border_masks, dirname, device):
     return epoch_loss / n, epoch_auc / n, epoch_accuracy / n
 
 
+def test_model_img(model, data_test, test_border_masks, dirname, device, threshold=0.5):
+    model.eval()
+    all_outputs = []
+    all_images = []
+    all_masks = []
+    os.makedirs(dirname, exist_ok=True)
+    for batch, (images, masks) in enumerate(data_test):
+        with torch.no_grad():
+            if torch.cuda.is_available():
+                images = images.to(device)
+                masks = masks.to(device)
+            images = Variable(images)
+            masks = Variable(masks)
+            outputs = model(images)
+
+            thresholded_outputs = (outputs > threshold).float()
+            all_outputs.append(thresholded_outputs.detach().cpu())
+            all_images.append(images.detach().cpu())
+            all_masks.append(masks.detach().cpu())
+
+    all_outputs = torch.cat(all_outputs)
+    all_images = torch.cat(all_images)
+    all_masks = torch.cat(all_masks)
+    pred_imgs = recompone(all_outputs, 13, 12)  # predictions
+    orig_imgs = recompone(all_images, 13, 12)  # originals
+    gtruth_masks = recompone(all_masks, 13, 12)  # masks
+    # kill_border(pred_imgs, test_border_masks)
+    # back to original dimensions
+    orig_imgs = orig_imgs[:, :, 0:565, 0:584]
+    pred_imgs = pred_imgs[:, :, 0:565, 0:584]
+    gtruth_masks = gtruth_masks[:, :, 0:565, 0:584]
+
+    # Put more metrics here
+    auc, accuracy = metrics_calculator(gtruth_masks, pred_imgs)
+
+    visualize(group_images(orig_imgs, 1), dirname + "all_originals")
+    visualize(group_images(pred_imgs, 1), dirname + "all_predictions")
+    visualize(group_images(gtruth_masks, 1), dirname + "all_masks")
+
+    return auc, accuracy
+
+
+
