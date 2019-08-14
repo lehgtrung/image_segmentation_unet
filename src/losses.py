@@ -36,13 +36,12 @@ class BinaryCrossEntropyLoss2d(nn.Module):
 
 
 def get_length(phi, device):
-    conv_filter_x = torch.FloatTensor([[[[-1, 0, 1],
-                                       [-2, 0, 2],
-                                       [-1, 0, 1]]]]).to(device)
-    conv_filter_y = torch.FloatTensor([[[[-1, -2, -1],
-                                       [0, 0, 0],
-                                       [1, 2, 1]]]]).to(device)
-
+    conv_filter_x = torch.tensor([[[[-1, 0, 1],
+                                    [-2, 0, 2],
+                                    [-1, 0, 1]]]], dtype=torch.float32).to(device)
+    conv_filter_y = torch.tensor([[[[-1, -2, -1],
+                                    [0, 0, 0],
+                                    [1, 2, 1]]]], dtype=torch.float32).to(device)
     grad_x = F.conv2d(phi, conv_filter_x, padding=1)
     grad_y = F.conv2d(phi, conv_filter_y, padding=1)
 

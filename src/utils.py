@@ -1,11 +1,15 @@
 import torch
-import torch.nn as nn
+import torch.nn.functional as F
 from torch.autograd import Variable
 from preprocess.extract_patches import recompone, kill_border
 from preprocess.help_functions import visualize, group_images, load_hdf5
 import metrics as mtr
 import os
 import csv
+import numpy as np
+from scipy import ndimage
+import matplotlib.pyplot as plt
+from PIL import Image
 
 
 def export_history(header, value, folder, file_name):
@@ -193,8 +197,10 @@ def test_model_img(model, data_test, test_border_masks, dirname, device, thresho
             masks = Variable(masks)
             outputs = model(images)
 
-            thresholded_outputs = (outputs > threshold).float()
-            all_outputs.append(thresholded_outputs.detach().cpu())
+            # thresholded_outputs = (outputs > threshold).float()
+            # all_outputs.append(thresholded_outputs.detach().cpu())
+            all_outputs.append(outputs.detach().cpu())
+
             all_images.append(images.detach().cpu())
             all_masks.append(masks.detach().cpu())
 
@@ -204,7 +210,7 @@ def test_model_img(model, data_test, test_border_masks, dirname, device, thresho
     pred_imgs = recompone(all_outputs, 13, 12)  # predictions
     orig_imgs = recompone(all_images, 13, 12)  # originals
     gtruth_masks = recompone(all_masks, 13, 12)  # masks
-    # kill_border(pred_imgs, test_border_masks)
+    kill_border(pred_imgs, test_border_masks)
     # back to original dimensions
     orig_imgs = orig_imgs[:, :, 0:565, 0:584]
     pred_imgs = pred_imgs[:, :, 0:565, 0:584]
@@ -220,4 +226,42 @@ def test_model_img(model, data_test, test_border_masks, dirname, device, thresho
     return auc, accuracy
 
 
+def extract_narrow_band(imgs, npixels=1):
+    """
+        Applying morphological gradient: the difference between dilation and erosion
+        https://docs.opencv.org/trunk/d9/d61/tutorial_py_morphological_ops.html
+        https://docs.scipy.org/doc/scipy-0.14.0/reference/generated/scipy.ndimage.morphology.binary_dilation.html
+    """
+    dilation_mask = ndimage.binary_dilation(imgs, iterations=npixels).astype(img.dtype)
+    erosion_mask = ndimage.binary_erosion(imgs, iterations=npixels).astype(img.dtype)
+    return dilation_mask - erosion_mask
 
+
+if __name__ == '__main__':
+    img_path = '/Users/trustingsocial/workspace/image_segmentation_unet/DRIVE/test/2nd_manual/01_manual2.gif'
+    img = np.asarray(Image.open(img_path))
+
+    fig, (ax1, ax2, ax3, ax4) = plt.subplots(nrows=1, ncols=4, figsize=(10, 5),
+                                             sharex=True, sharey=True)
+
+    ax1.imshow(img, cmap=plt.cm.gray)
+    ax1.axis('off')
+    ax1.set_title('Original image', fontsize=10)
+
+    ax2.imshow(ndimage.binary_dilation(img, iterations=1).astype(img.dtype), cmap=plt.cm.gray)
+    ax2.axis('off')
+    ax2.set_title('Dilated image', fontsize=10)
+
+    ax3.imshow(ndimage.binary_erosion(img, iterations=1).astype(img.dtype), cmap=plt.cm.gray)
+    ax3.axis('off')
+    ax3.set_title('Eroded image', fontsize=10)
+
+    ax4.imshow(ndimage.binary_dilation(img, iterations=1).astype(img.dtype)
+               - ndimage.binary_erosion(img, iterations=1).astype(img.dtype)
+               , cmap=plt.cm.gray)
+    ax4.axis('off')
+    ax4.set_title('Morp image', fontsize=10)
+
+    fig.tight_layout()
+
+    plt.show()

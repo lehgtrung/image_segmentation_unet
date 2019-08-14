@@ -1,4 +1,36 @@
 # Test model script
 python main.py --mode test\
  --modelpath ../history/AUG10_normed_nolength_adam_1e-05_contour/saved_models/model_epoch_150.pth\
-  --hashcode AUG10_normed_nolength_adam_1e-05_contour --gpu 2
+ --lossf contour\
+  --hashcode AUG10_normed_nolength --gpu 2
+>>>>>
+Test auc:  0.9618661289119402
+Test accuracy:  0.9448909654297987
+<<<<<
+
+python main.py --mode test\
+ --modelpath ../history/WED32_adam_1e-05_bce/saved_models/model_epoch_150.pth\
+ --lossf bce\
+  --hashcode WED32 --gpu 2
+>>>>>
+Test auc:  0.9300937982162811
+Test accuracy:  0.9139335248149874
+<<<<<
+
+python main.py --mode test\
+ --modelpath ../history/WED32_adam_1e-05_contour/saved_models/model_epoch_150.pth\
+ --lossf contour\
+  --hashcode WED32 --gpu 2
+>>>>>
+Test auc:  0.9499870986749952
+Test accuracy:  0.9387716387206954
+<<<<<
+
+python main.py --mode test\
+ --modelpath ../history/WED32_adam_1e-05_dice/saved_models/model_epoch_150.pth\
+ --lossf dice\
+  --hashcode WED32 --gpu 2
+>>>>>
+Test auc:  0.881292616782372
+Test accuracy:  0.9524878059825079
+<<<<<
