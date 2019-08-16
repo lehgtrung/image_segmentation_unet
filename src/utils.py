@@ -1,10 +1,11 @@
 import torch
 import torch.nn.functional as F
 from torch.autograd import Variable
-from preprocess.extract_patches import recompone, kill_border
+from preprocess.extract_patches import recompone, kill_border, recompone_overlap
 from preprocess.help_functions import visualize, group_images, load_hdf5
 import metrics as mtr
 import os
+import glob
 import csv
 import numpy as np
 from scipy import ndimage
@@ -182,7 +183,7 @@ def test_model(model, data_test, criterion, test_border_masks, dirname, device):
     return epoch_loss / n, epoch_auc / n, epoch_accuracy / n
 
 
-def test_model_img(model, data_test, test_border_masks, dirname, device, threshold=0.5):
+def test_model_img(model, data_test, test_border_masks, dirname, device):
     model.eval()
     all_outputs = []
     all_images = []
@@ -197,10 +198,7 @@ def test_model_img(model, data_test, test_border_masks, dirname, device, thresho
             masks = Variable(masks)
             outputs = model(images)
 
-            # thresholded_outputs = (outputs > threshold).float()
-            # all_outputs.append(thresholded_outputs.detach().cpu())
             all_outputs.append(outputs.detach().cpu())
-
             all_images.append(images.detach().cpu())
             all_masks.append(masks.detach().cpu())
 
@@ -226,42 +224,62 @@ def test_model_img(model, data_test, test_border_masks, dirname, device, thresho
     return auc, accuracy
 
 
-def extract_narrow_band(imgs, npixels=1):
+def extract_narrow_band(input_dir, output_dir, d1=1, d2=1):
     """
         Applying morphological gradient: the difference between dilation and erosion
         https://docs.opencv.org/trunk/d9/d61/tutorial_py_morphological_ops.html
         https://docs.scipy.org/doc/scipy-0.14.0/reference/generated/scipy.ndimage.morphology.binary_dilation.html
     """
-    dilation_mask = ndimage.binary_dilation(imgs, iterations=npixels).astype(img.dtype)
-    erosion_mask = ndimage.binary_erosion(imgs, iterations=npixels).astype(img.dtype)
-    return dilation_mask - erosion_mask
+    img_paths = glob.glob(os.path.join(input_dir, '*.gif'))
+    os.makedirs(output_dir, exist_ok=True)
+    for path in img_paths:
+        idx = os.path.basename(path)[:2]
+        im = np.asarray(Image.open(path))
+        dilation_mask = ndimage.binary_dilation(im, iterations=d1).astype(im.dtype)
+        erosion_mask = ndimage.binary_erosion(im, iterations=d2).astype(im.dtype)
+        out_im = Image.fromarray(((dilation_mask - erosion_mask) * 255).astype(np.uint8))
+        out_im.save(os.path.join(output_dir, idx + "_narr.gif"))
 
 
 if __name__ == '__main__':
-    img_path = '/Users/trustingsocial/workspace/image_segmentation_unet/DRIVE/test/2nd_manual/01_manual2.gif'
-    img = np.asarray(Image.open(img_path))
-
-    fig, (ax1, ax2, ax3, ax4) = plt.subplots(nrows=1, ncols=4, figsize=(10, 5),
-                                             sharex=True, sharey=True)
-
-    ax1.imshow(img, cmap=plt.cm.gray)
-    ax1.axis('off')
-    ax1.set_title('Original image', fontsize=10)
-
-    ax2.imshow(ndimage.binary_dilation(img, iterations=1).astype(img.dtype), cmap=plt.cm.gray)
-    ax2.axis('off')
-    ax2.set_title('Dilated image', fontsize=10)
-
-    ax3.imshow(ndimage.binary_erosion(img, iterations=1).astype(img.dtype), cmap=plt.cm.gray)
-    ax3.axis('off')
-    ax3.set_title('Eroded image', fontsize=10)
-
-    ax4.imshow(ndimage.binary_dilation(img, iterations=1).astype(img.dtype)
-               - ndimage.binary_erosion(img, iterations=1).astype(img.dtype)
-               , cmap=plt.cm.gray)
-    ax4.axis('off')
-    ax4.set_title('Morp image', fontsize=10)
-
-    fig.tight_layout()
-
-    plt.show()
+    extract_narrow_band('/Users/trustingsocial/workspace/image_segmentation_unet/DRIVE/training/1st_manual',
+                        '/Users/trustingsocial/workspace/image_segmentation_unet/DRIVE/training/narrowband')
+    # img_path = '/Users/trustingsocial/workspace/image_segmentation_unet/DRIVE/test/2nd_manual/01_manual2.gif'
+    # img = np.asarray(Image.open(img_path))
+    #
+    # fig, (ax1, ax2, ax3, ax4, ax5, ax6) = plt.subplots(nrows=1, ncols=6, figsize=(12, 6),
+    #                                                    sharex=True, sharey=True)
+    #
+    # dilated_img = ndimage.binary_dilation(img, iterations=2).astype(img.dtype)
+    # erosed_img = ndimage.binary_erosion(img, iterations=2).astype(img.dtype)
+    # morp_img = dilated_img - erosed_img
+    # narr_img = img * morp_img
+    # narr_img2 = (1 - img) * (1 - morp_img)
+    #
+    # ax1.imshow(img, cmap=plt.cm.gray)
+    # ax1.axis('off')
+    # ax1.set_title('Original image', fontsize=10)
+    #
+    # ax2.imshow(dilated_img, cmap=plt.cm.gray)
+    # ax2.axis('off')
+    # ax2.set_title('Dilated image', fontsize=10)
+    #
+    # ax3.imshow(1 - img, cmap=plt.cm.gray)
+    # ax3.axis('off')
+    # ax3.set_title('Erosed image', fontsize=10)
+    #
+    # ax4.imshow(morp_img, cmap=plt.cm.gray)
+    # ax4.axis('off')
+    # ax4.set_title('Morp image', fontsize=10)
+    #
+    # ax5.imshow(narr_img, cmap=plt.cm.gray)
+    # ax5.axis('off')
+    # ax5.set_title('Narrow band image', fontsize=10)
+    #
+    # ax6.imshow(narr_img2, cmap=plt.cm.gray)
+    # ax6.axis('off')
+    # ax6.set_title('Narrow band reversed image', fontsize=10)
+    #
+    # fig.tight_layout()
+    #
+    # plt.show()

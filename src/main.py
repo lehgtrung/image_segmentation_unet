@@ -2,7 +2,7 @@
 from utils import *
 
 from dataset import DRIVEDataset
-from losses import ContourLoss, BinaryCrossEntropyLoss2d, DiceLoss, FocalLoss
+from losses import ContourLoss, ContourLossVer2, BinaryCrossEntropyLoss2d, DiceLoss, FocalLoss
 from unet import UNet1024
 import argparse
 
@@ -99,7 +99,7 @@ def main():
     elif lossf == 'dice':
         criterion = DiceLoss()
     elif lossf == 'contour':
-        criterion = ContourLoss(device=device, mu=mu, normed=normed, withlen=withlen)
+        criterion = ContourLossVer2(device=device, mu=mu, normed=normed, withlen=withlen)
     elif lossf == 'focal':
         criterion = FocalLoss()
     else:

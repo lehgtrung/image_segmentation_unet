@@ -3,6 +3,7 @@ import torch
 import torch.nn as nn
 import torch.nn.functional as F
 import numpy as np
+from utils import extract_narrow_band
 from torch.autograd import Variable
 
 
@@ -84,6 +85,32 @@ class ContourLoss(nn.Module):
         if self.normed:
             force_inside = (force_inside + eps)/(targets.sum(-1).sum(-1) + eps)
             force_outside = (force_outside + eps)/((1 - targets).sum(-1).sum(-1) + eps)
+        if self.withlen:
+            contour_len = self.mu * get_length(preds, self.device)
+            force = contour_len + force_inside + force_outside
+        else:
+            force = force_inside + force_outside
+        return torch.mean(force)
+
+
+class ContourLossVer2(nn.Module):
+    def __init__(self, device, mu, normed, withlen):
+        self.normed = normed
+        self.withlen = withlen
+        self.device = device
+        self.mu = mu
+        super(ContourLossVer2, self).__init__()
+
+    def forward(self, preds, targets):
+        c1 = 1.0
+        c2 = 0.0
+        eps = 1e-7
+        nb_mask = extract_narrow_band(targets, d1=1, d2=2)
+        force_inside = (preds - c1).pow(2).mul(targets).mul(nb_mask).sum(-1).sum(-1)
+        force_outside = (preds - c2).pow(2).mul(1.0 - targets).mul(nb_mask).sum(-1).sum(-1)
+        if self.normed:
+            force_inside = (force_inside + eps)/(targets.mul(nb_mask).sum(-1).sum(-1) + eps)
+            force_outside = (force_outside + eps)/((1 - targets).mul(nb_mask).sum(-1).sum(-1) + eps)
         if self.withlen:
             contour_len = self.mu * get_length(preds, self.device)
             force = contour_len + force_inside + force_outside
