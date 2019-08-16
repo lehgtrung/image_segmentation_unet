@@ -20,10 +20,12 @@ def write_hdf5(arr, outfile):
 original_imgs_train = "../DRIVE/training/images/"
 groundTruth_imgs_train = "../DRIVE/training/1st_manual/"
 borderMasks_imgs_train = "../DRIVE/training/mask/"
+narrowBand_imgs_train = "../DRIVE/training/narrowband/"
 # test
 original_imgs_test = "../DRIVE/test/images/"
 groundTruth_imgs_test = "../DRIVE/test/1st_manual/"
 borderMasks_imgs_test = "../DRIVE/test/mask/"
+narrowBand_imgs_test = "../DRIVE/test/narrowband/"
 #---------------------------------------------------------------------------------------------
 
 Nimgs = 20
@@ -33,9 +35,10 @@ width = 565
 dataset_path = "../DRIVE_datasets_training_testing/"
 
 
-def get_datasets(imgs_dir, groundTruth_dir, borderMasks_dir, train_test="null"):
+def get_datasets(imgs_dir, groundTruth_dir, narrowBand_dir, borderMasks_dir, train_test="null"):
     imgs = np.empty((Nimgs,height, width,channels))
     groundTruth = np.empty((Nimgs, height,width))
+    narrowBand = np.empty((Nimgs, height,width))
     border_masks = np.empty((Nimgs, height,width))
     for path, subdirs, files in os.walk(imgs_dir):  # list all files, directories in the path
         for i in range(len(files)):
@@ -48,6 +51,11 @@ def get_datasets(imgs_dir, groundTruth_dir, borderMasks_dir, train_test="null"):
             print("ground truth name: " + groundTruth_name)
             g_truth = Image.open(groundTruth_dir + groundTruth_name)
             groundTruth[i] = np.asarray(g_truth)
+            # corresponding narrow band
+            narrowBand_name = files[i][0:2] + "_narr.gif"
+            print("narrow band name: " + narrowBand_name)
+            narr = Image.open(narrowBand_dir + narrowBand_name)
+            narrowBand[i] = np.asarray(narr)
             # corresponding border masks
             border_masks_name = ""
             if train_test == "train":
@@ -70,27 +78,34 @@ def get_datasets(imgs_dir, groundTruth_dir, borderMasks_dir, train_test="null"):
     imgs = np.transpose(imgs, (0, 3, 1, 2))
     assert(imgs.shape == (Nimgs, channels, height, width))
     groundTruth = np.reshape(groundTruth, (Nimgs, 1, height,width))
+    narrowBand = np.reshape(groundTruth, (Nimgs, 1, height,width))
     border_masks = np.reshape(border_masks, (Nimgs, 1, height,width))
     assert(groundTruth.shape == (Nimgs, 1, height, width))
+    assert(narrowBand.shape == (Nimgs, 1, height, width))
     assert(border_masks.shape == (Nimgs, 1, height, width))
-    return imgs, groundTruth, border_masks
+    return imgs, groundTruth, narrowBand, border_masks
 
 
 if not os.path.exists(dataset_path):
     os.makedirs(dataset_path)
 # getting the training datasets
-imgs_train, groundTruth_train, border_masks_train = get_datasets(original_imgs_train, groundTruth_imgs_train,
-                                                                 borderMasks_imgs_train, "train")
+imgs_train, groundTruth_train, narrowBand_train, border_masks_train = get_datasets(original_imgs_train,
+                                                                                   groundTruth_imgs_train,
+                                                                                   narrowBand_imgs_train,
+                                                                                   borderMasks_imgs_train, "train")
 print("saving train datasets")
 write_hdf5(imgs_train, dataset_path + "DRIVE_dataset_imgs_train.hdf5")
 write_hdf5(groundTruth_train, dataset_path + "DRIVE_dataset_groundTruth_train.hdf5")
+write_hdf5(narrowBand_train, dataset_path + "DRIVE_dataset_narrowBand_train.hdf5")
 write_hdf5(border_masks_train, dataset_path + "DRIVE_dataset_borderMasks_train.hdf5")
 
 # getting the testing datasets
-imgs_test, groundTruth_test, border_masks_test = get_datasets(original_imgs_test,
-                                                              groundTruth_imgs_test,
-                                                              borderMasks_imgs_test,"test")
+imgs_test, groundTruth_test, narrowBand_test, border_masks_test = get_datasets(original_imgs_test,
+                                                                               groundTruth_imgs_test,
+                                                                               narrowBand_imgs_test,
+                                                                               borderMasks_imgs_test, "test")
 print("saving test datasets")
 write_hdf5(imgs_test, dataset_path + "DRIVE_dataset_imgs_test.hdf5")
 write_hdf5(groundTruth_test, dataset_path + "DRIVE_dataset_groundTruth_test.hdf5")
+write_hdf5(narrowBand_test, dataset_path + "DRIVE_dataset_narrowBand_test.hdf5")
 write_hdf5(border_masks_test, dataset_path + "DRIVE_dataset_borderMasks_test.hdf5")

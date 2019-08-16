@@ -244,6 +244,8 @@ def extract_narrow_band(input_dir, output_dir, d1=1, d2=1):
 if __name__ == '__main__':
     extract_narrow_band('/Users/trustingsocial/workspace/image_segmentation_unet/DRIVE/training/1st_manual',
                         '/Users/trustingsocial/workspace/image_segmentation_unet/DRIVE/training/narrowband')
+    extract_narrow_band('/Users/trustingsocial/workspace/image_segmentation_unet/DRIVE/test/1st_manual',
+                        '/Users/trustingsocial/workspace/image_segmentation_unet/DRIVE/test/narrowband')
     # img_path = '/Users/trustingsocial/workspace/image_segmentation_unet/DRIVE/test/2nd_manual/01_manual2.gif'
     # img = np.asarray(Image.open(img_path))
     #

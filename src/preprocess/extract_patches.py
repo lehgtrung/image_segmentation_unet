@@ -15,6 +15,7 @@ from PIL import Image
 # train
 DRIVE_train_imgs_original = "../DRIVE_datasets_training_testing/DRIVE_dataset_imgs_train.hdf5"
 DRIVE_train_groudTruth = "../DRIVE_datasets_training_testing/DRIVE_dataset_groundTruth_train.hdf5"
+DRIVE_train_narrowBand = "../DRIVE_datasets_training_testing/DRIVE_dataset_narrowBand_train.hdf5"
 
 patch_height = 48
 patch_width = 48
@@ -26,20 +27,25 @@ inside_FOV = True
 # Load the original data and return the extracted patches for training/testing
 def get_data_training(DRIVE_train_imgs_original,
                       DRIVE_train_groudTruth,
+                      DRIVE_train_narrowBand,
                       patch_height,
                       patch_width,
                       N_subimgs,
                       inside_FOV):
     train_imgs_original = load_hdf5(DRIVE_train_imgs_original)
     train_masks = load_hdf5(DRIVE_train_groudTruth)  # masks always the same
+    train_nb_masks = load_hdf5(DRIVE_train_narrowBand)
     # visualize(group_images(train_imgs_original[0:20,:,:,:],5),'imgs_train')#.show()  #check original imgs train
 
     train_imgs = my_PreProc(train_imgs_original)
     train_masks = train_masks/255.
+    train_nb_masks = train_nb_masks / 255.
 
     train_imgs = train_imgs[:, :, 9:574, :]  # cut bottom and top so now it is 565*565
     train_masks = train_masks[:, :, 9:574, :]  # cut bottom and top so now it is 565*565
+    train_nb_masks = train_nb_masks[:, :, 9:574, :]  # cut bottom and top so now it is 565*565
     data_consistency_check(train_imgs, train_masks)
+    data_consistency_check(train_imgs, train_nb_masks)
 
     # check masks are within 0-1
     assert np.min(train_masks) == 0 and np.max(train_masks) == 1
@@ -50,20 +56,21 @@ def get_data_training(DRIVE_train_imgs_original,
     print("train masks are within 0-1\n")
 
     # extract the TRAINING patches from the full images
-    patches_imgs_train, patches_masks_train = extract_random(train_imgs,
-                                                             train_masks,
-                                                             patch_height,
-                                                             patch_width,
-                                                             N_subimgs,
-                                                             inside_FOV)
+    patches_imgs_train, patches_masks_train, patches_nb_masks_train = extract_random(train_imgs,
+                                                                                     train_masks,
+                                                                                     patch_height,
+                                                                                     patch_width,
+                                                                                     N_subimgs,
+                                                                                     inside_FOV)
     data_consistency_check(patches_imgs_train, patches_masks_train)
+    data_consistency_check(patches_imgs_train, patches_nb_masks_train)
 
     print("\ntrain PATCHES images/masks shape:")
     print(patches_imgs_train.shape)
     print("train PATCHES images range (min-max): " +
           str(np.min(patches_imgs_train)) + ' - ' + str(np.max(patches_imgs_train)))
 
-    return patches_imgs_train, patches_masks_train  # ,patches_imgs_test, patches_masks_test
+    return patches_imgs_train, patches_masks_train, patches_nb_masks_train  # ,patches_imgs_test, patches_masks_test
 
 
 # Load the original data and return the extracted patches for training/testing
@@ -158,16 +165,18 @@ def data_consistency_check(imgs,masks):
 
 # extract patches randomly in the full training images
 #  -- Inside OR in full image
-def extract_random(full_imgs, full_masks, patch_h, patch_w, N_patches, inside=True):
+def extract_random(full_imgs, full_masks, nb_masks, patch_h, patch_w, N_patches, inside=True):
     if N_patches % full_imgs.shape[0] != 0:
         print("N_patches: plase enter a multiple of 20")
         exit()
     assert len(full_imgs.shape) == 4 and len(full_masks.shape) == 4  # 4D arrays
     assert full_imgs.shape[1] == 1 or full_imgs.shape[1]==3  # check the channel is 1 or 3
     assert full_masks.shape[1] == 1   # masks only black and white
+    assert nb_masks.shape[1] == 1
     assert full_imgs.shape[2] == full_masks.shape[2] and full_imgs.shape[3] == full_masks.shape[3]
     patches = np.empty((N_patches, full_imgs.shape[1], patch_h, patch_w))
     patches_masks = np.empty((N_patches, full_masks.shape[1], patch_h, patch_w))
+    patches_nb_masks = np.empty((N_patches, full_imgs.shape[1], patch_h, patch_w))
     img_h = full_imgs.shape[2]  # height of the full image
     img_w = full_imgs.shape[3]  # width of the full image
     # (0,0) in the center of the image
@@ -189,11 +198,14 @@ def extract_random(full_imgs, full_masks, patch_h, patch_w, N_patches, inside=Tr
                               x_center-int(patch_w/2):x_center+int(patch_w/2)]
             patch_mask = full_masks[i, :, y_center-int(patch_h/2):y_center+int(patch_h/2),
                                     x_center-int(patch_w/2):x_center+int(patch_w/2)]
+            patch_nb_mask = nb_masks[i, :, y_center-int(patch_h/2):y_center+int(patch_h/2),
+                                     x_center-int(patch_w/2):x_center+int(patch_w/2)]
             patches[iter_tot] = patch
             patches_masks[iter_tot] = patch_mask
+            patches_nb_masks[iter_tot] = patches_nb_masks
             iter_tot += 1   # total
             k += 1  # per full_img
-    return patches, patches_masks
+    return patches, patches_masks, patches_nb_masks
 
 
 # check if the patch is fully contained in the FOV
@@ -425,11 +437,5 @@ def inside_FOV_DRIVE(i, x, y, DRIVE_masks):
     else:
         return False
 
-
-if __name__ == '__main__':
-    patches_imgs_train, patches_masks_train = get_data_training(DRIVE_train_imgs_original, DRIVE_train_groudTruth,
-                                                                patch_height, patch_width, N_subimgs, inside_FOV)
-    print(patches_imgs_train.shape)
-    print(patches_masks_train.shape)
 
 
