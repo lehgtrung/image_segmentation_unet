@@ -34,3 +34,13 @@ python main.py --mode test\
 Test auc:  0.881292616782372
 Test accuracy:  0.9524878059825079
 <<<<<
+
+python main.py --mode test\
+ --modelpath ../history/AUG17_narowband_adam_1e-05_contour/saved_models/model_epoch_150.pth\
+ --lossf contour\
+  --hashcode AUG17_narowband --gpu 2
+
+python main.py --mode test\
+ --modelpath ../history/AUG20_narrow_adam_1e-05_contour/saved_models/model_epoch_30.pth\
+ --lossf contour\
+  --hashcode AUG20_narrow --gpu 2

@@ -7,6 +7,7 @@ import metrics as mtr
 import os
 import glob
 import csv
+import random
 import numpy as np
 from scipy import ndimage
 import matplotlib.pyplot as plt
@@ -68,15 +69,20 @@ def train_model(epoch, model, data_train, criterion, optimizer, device):
     epoch_auc = 0.0
     epoch_accuracy = 0.0
     n = 0.0
-    for batch, (images, masks) in enumerate(data_train):
+    for batch, (images, masks, narrowbands) in enumerate(data_train):
         n += 1
         if torch.cuda.is_available():
             images = images.to(device)
             masks = masks.to(device)
+            narrowbands = narrowbands.to(device)
         images = Variable(images)
         masks = Variable(masks)
+        narrowbands = Variable(narrowbands)
         outputs = model(images)
-        loss = criterion(outputs, masks)
+        try:
+            loss = criterion(outputs, masks, narrowbands)
+        except ValueError:
+            loss = criterion(outputs, masks)
         optimizer.zero_grad()
         loss.backward()
         optimizer.step()
@@ -102,23 +108,27 @@ def validate_model(model, data_test, criterion, device):
     epoch_auc = 0.0
     epoch_accuracy = 0.0
     n = 0.0
-    for batch, (images, masks) in enumerate(data_test):
+    for batch, (images, masks, narrowbands) in enumerate(data_test):
         n += 1
         with torch.no_grad():
             if torch.cuda.is_available():
                 images = images.to(device)
                 masks = masks.to(device)
+                narrowbands = narrowbands.to(device)
             images = Variable(images)
             masks = Variable(masks)
+            narrowbands = Variable(narrowbands)
             outputs = model(images)
-            loss = criterion(outputs, masks)
-
+            try:
+                loss = criterion(outputs, masks, narrowbands)
+            except ValueError:
+                loss = criterion(outputs, masks)
             auc, accuracy = metrics_calculator(masks.clone(), outputs.clone())
             epoch_loss += loss.item()
 
             epoch_auc += auc
             epoch_accuracy += accuracy
-            if batch % 1 == 0:
+            if batch % 100 == 0:
                 print('Batch', str(batch + 1),
                       'Val loss:', loss.item(),
                       'Val auc:', auc,
@@ -216,6 +226,7 @@ def test_model_img(model, data_test, test_border_masks, dirname, device):
 
     # Put more metrics here
     auc, accuracy = metrics_calculator(gtruth_masks, pred_imgs)
+    pred_imgs = (pred_imgs >= 0.5).astype('int')
 
     visualize(group_images(orig_imgs, 1), dirname + "all_originals")
     visualize(group_images(pred_imgs, 1), dirname + "all_predictions")
@@ -241,47 +252,59 @@ def extract_narrow_band(input_dir, output_dir, d1=1, d2=1):
         out_im.save(os.path.join(output_dir, idx + "_narr.gif"))
 
 
+def split_arrays(size, *args):
+    indices = list(range(len(args[0])))
+    n = int(len(indices) * size)
+    random.shuffle(indices)
+    print("Len indices", len(indices))
+    print("Len n", n)
+    for arr in args:
+        assert len(arr) == len(indices)
+        yield arr[indices][n:], arr[indices][:n]
+
+
 if __name__ == '__main__':
-    extract_narrow_band('/Users/trustingsocial/workspace/image_segmentation_unet/DRIVE/training/1st_manual',
-                        '/Users/trustingsocial/workspace/image_segmentation_unet/DRIVE/training/narrowband')
-    extract_narrow_band('/Users/trustingsocial/workspace/image_segmentation_unet/DRIVE/test/1st_manual',
-                        '/Users/trustingsocial/workspace/image_segmentation_unet/DRIVE/test/narrowband')
-    # img_path = '/Users/trustingsocial/workspace/image_segmentation_unet/DRIVE/test/2nd_manual/01_manual2.gif'
-    # img = np.asarray(Image.open(img_path))
-    #
-    # fig, (ax1, ax2, ax3, ax4, ax5, ax6) = plt.subplots(nrows=1, ncols=6, figsize=(12, 6),
-    #                                                    sharex=True, sharey=True)
-    #
-    # dilated_img = ndimage.binary_dilation(img, iterations=2).astype(img.dtype)
-    # erosed_img = ndimage.binary_erosion(img, iterations=2).astype(img.dtype)
-    # morp_img = dilated_img - erosed_img
-    # narr_img = img * morp_img
-    # narr_img2 = (1 - img) * (1 - morp_img)
-    #
-    # ax1.imshow(img, cmap=plt.cm.gray)
-    # ax1.axis('off')
-    # ax1.set_title('Original image', fontsize=10)
-    #
-    # ax2.imshow(dilated_img, cmap=plt.cm.gray)
-    # ax2.axis('off')
-    # ax2.set_title('Dilated image', fontsize=10)
-    #
-    # ax3.imshow(1 - img, cmap=plt.cm.gray)
-    # ax3.axis('off')
-    # ax3.set_title('Erosed image', fontsize=10)
-    #
-    # ax4.imshow(morp_img, cmap=plt.cm.gray)
-    # ax4.axis('off')
-    # ax4.set_title('Morp image', fontsize=10)
-    #
-    # ax5.imshow(narr_img, cmap=plt.cm.gray)
-    # ax5.axis('off')
-    # ax5.set_title('Narrow band image', fontsize=10)
-    #
-    # ax6.imshow(narr_img2, cmap=plt.cm.gray)
-    # ax6.axis('off')
-    # ax6.set_title('Narrow band reversed image', fontsize=10)
-    #
-    # fig.tight_layout()
-    #
-    # plt.show()
+    # extract_narrow_band('../DRIVE/training/1st_manual',
+    #                     '../DRIVE/training/narrowband')
+    # extract_narrow_band('../DRIVE/test/1st_manual',
+    #                     '../DRIVE/test/narrowband')
+    img_path = '/Users/trustingsocial/workspace/image_segmentation_unet/DRIVE/test/2nd_manual/01_manual2.gif'
+    img = np.asarray(Image.open(img_path))
+
+    fig, (ax1, ax2, ax3, ax4, ax5, ax6) = plt.subplots(nrows=1, ncols=6, figsize=(12, 6),
+                                                       sharex=True, sharey=True)
+
+    dilated_img = ndimage.binary_dilation(img, iterations=2).astype(img.dtype)
+    erosed_img = ndimage.binary_erosion(img, iterations=2).astype(img.dtype)
+    morp_img = dilated_img - erosed_img
+    narr_img = img * morp_img
+    # narr_img2 = (1 - img) * morp_img
+    narr_img2 = (1 - img) * (1 - morp_img)
+
+    ax1.imshow(img, cmap=plt.cm.gray)
+    ax1.axis('off')
+    ax1.set_title('Original image', fontsize=10)
+
+    ax2.imshow(dilated_img, cmap=plt.cm.gray)
+    ax2.axis('off')
+    ax2.set_title('Dilated image', fontsize=10)
+
+    ax3.imshow(1 - img, cmap=plt.cm.gray)
+    ax3.axis('off')
+    ax3.set_title('Erosed image', fontsize=10)
+
+    ax4.imshow(morp_img, cmap=plt.cm.gray)
+    ax4.axis('off')
+    ax4.set_title('Morp image', fontsize=10)
+
+    ax5.imshow(narr_img, cmap=plt.cm.gray)
+    ax5.axis('off')
+    ax5.set_title('Narrow band image', fontsize=10)
+
+    ax6.imshow(narr_img2, cmap=plt.cm.gray)
+    ax6.axis('off')
+    ax6.set_title('Narrow band reversed image', fontsize=10)
+
+    fig.tight_layout()
+
+    plt.show()

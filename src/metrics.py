@@ -1,7 +1,7 @@
 
 import torch
 import numpy as np
-from sklearn.metrics import roc_auc_score, accuracy_score
+from sklearn.metrics import roc_auc_score, accuracy_score, jaccard_score
 
 
 def standardize_for_metrics(masks, preds):
@@ -50,15 +50,12 @@ def accuracy(batch_size, masks, preds, cutoff=0.5):
 
 def jaccard(batch_size, masks, preds, cutoff=0.5):
     """ Intersection over union between thresholded prediction and binary masks """
-    total_ji = .0
+    total_jaccard = .0
     for pair in zip(preds, masks):
         flat_pred = (pair[0].reshape(-1) >= cutoff).astype(int)
         flat_mask = pair[1].reshape(-1).astype(int)
-        intersection = np.logical_and(flat_mask, flat_pred)
-        union = np.logical_or(flat_mask, flat_pred)
-        iou_score = np.sum(intersection) / np.sum(union)
-        total_ji += iou_score
-    return total_ji / batch_size
+        total_jaccard += jaccard_score(flat_mask, flat_pred)
+    return total_jaccard / batch_size
 
 
 def compute_best_cutoff(batch_size, masks, preds):

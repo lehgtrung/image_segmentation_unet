@@ -14,6 +14,7 @@ DRIVE_train_narrowBand = "../DRIVE_datasets_training_testing/DRIVE_dataset_narro
 
 DRIVE_test_imgs_original = "../DRIVE_datasets_training_testing/DRIVE_dataset_imgs_test.hdf5"
 DRIVE_test_groundTruth = "../DRIVE_datasets_training_testing/DRIVE_dataset_groundTruth_test.hdf5"
+DRIVE_test_narrowBand = "../DRIVE_datasets_training_testing/DRIVE_dataset_narrowBand_test.hdf5"
 DRIVE_test_border_masks = "../DRIVE_datasets_training_testing/DRIVE_dataset_borderMasks_test.hdf5"
 
 patch_height = 48
@@ -63,10 +64,12 @@ def main():
             "train",
             DRIVE_train_imgs_original,
             DRIVE_train_groudTruth,
+            DRIVE_train_narrowBand,
             patch_height,
             patch_width,
             N_subimgs
         )
+        print(len(DRIVE_train))
 
         DRIVE_valid = DRIVE_train.get_validation_dataset()
         DRIVE_train_load = \
@@ -81,6 +84,7 @@ def main():
             "test",
             DRIVE_test_imgs_original,
             DRIVE_test_groundTruth,
+            DRIVE_test_narrowBand,
             patch_height,
             patch_width,
             -1

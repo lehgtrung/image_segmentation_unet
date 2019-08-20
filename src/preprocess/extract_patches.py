@@ -58,6 +58,7 @@ def get_data_training(DRIVE_train_imgs_original,
     # extract the TRAINING patches from the full images
     patches_imgs_train, patches_masks_train, patches_nb_masks_train = extract_random(train_imgs,
                                                                                      train_masks,
+                                                                                     train_nb_masks,
                                                                                      patch_height,
                                                                                      patch_width,
                                                                                      N_subimgs,
@@ -166,9 +167,9 @@ def data_consistency_check(imgs,masks):
 # extract patches randomly in the full training images
 #  -- Inside OR in full image
 def extract_random(full_imgs, full_masks, nb_masks, patch_h, patch_w, N_patches, inside=True):
+    print('N_patches', N_patches)
     if N_patches % full_imgs.shape[0] != 0:
-        print("N_patches: plase enter a multiple of 20")
-        exit()
+        raise ValueError("N_patches: please enter a multiple of 20")
     assert len(full_imgs.shape) == 4 and len(full_masks.shape) == 4  # 4D arrays
     assert full_imgs.shape[1] == 1 or full_imgs.shape[1]==3  # check the channel is 1 or 3
     assert full_masks.shape[1] == 1   # masks only black and white
@@ -202,7 +203,7 @@ def extract_random(full_imgs, full_masks, nb_masks, patch_h, patch_w, N_patches,
                                      x_center-int(patch_w/2):x_center+int(patch_w/2)]
             patches[iter_tot] = patch
             patches_masks[iter_tot] = patch_mask
-            patches_nb_masks[iter_tot] = patches_nb_masks
+            patches_nb_masks[iter_tot] = patch_nb_mask
             iter_tot += 1   # total
             k += 1  # per full_img
     return patches, patches_masks, patches_nb_masks
