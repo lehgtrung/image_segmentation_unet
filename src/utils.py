@@ -55,12 +55,12 @@ def save_model(model, path, epoch):
     torch.save(model.state_dict(), path+"/model_epoch_{0}.pth".format(epoch))
 
 
-def metrics_calculator(masks, preds):
+def metrics_calculator(masks, preds, mode_average=True):
     batch_size, masks, predictions = mtr.standardize_for_metrics(masks, preds)
-    auc_score = mtr.roc_auc(batch_size, masks, predictions)
-    accuracy_score = mtr.accuracy(batch_size, masks, predictions)
-    # jaccard_score = mtr.jaccard(batch_size, masks, predictions)
-    return auc_score, accuracy_score
+    auc_score = mtr.roc_auc(batch_size, masks, predictions, mode_average)
+    accuracy_score = mtr.accuracy(batch_size, masks, predictions, mode_average)
+    jaccard_score = mtr.jaccard(batch_size, masks, predictions, mode_average)
+    return auc_score, accuracy_score, jaccard_score
 
 
 def train_model(epoch, model, data_train, criterion, optimizer, device):
@@ -104,9 +104,10 @@ def train_model(epoch, model, data_train, criterion, optimizer, device):
 
 def validate_model(model, data_test, criterion, device):
     model.eval()
-    epoch_loss = 0.0
-    epoch_auc = 0.0
-    epoch_accuracy = 0.0
+    epoch_loss = .0
+    epoch_auc = .0
+    epoch_accuracy = .0
+    epoch_jaccard = .0
     n = 0.0
     for batch, (images, masks, narrowbands) in enumerate(data_test):
         n += 1
@@ -123,74 +124,20 @@ def validate_model(model, data_test, criterion, device):
                 loss = criterion(outputs, masks, narrowbands)
             except ValueError:
                 loss = criterion(outputs, masks)
-            auc, accuracy = metrics_calculator(masks.clone(), outputs.clone())
+            auc, accuracy, jaccard = metrics_calculator(masks.clone(), outputs.clone())
             epoch_loss += loss.item()
 
             epoch_auc += auc
             epoch_accuracy += accuracy
+            epoch_jaccard += jaccard
             if batch % 100 == 0:
                 print('Batch', str(batch + 1),
                       'Val loss:', loss.item(),
                       'Val auc:', auc,
                       'Val accuracy:', accuracy,
+                      'Val jaccard:', jaccard
                       )
-    return epoch_loss / n, epoch_auc / n, epoch_accuracy / n
-
-
-def test_model(model, data_test, criterion, test_border_masks, dirname, device):
-    model.eval()
-    epoch_loss = 0.0
-    all_outputs = []
-    all_images = []
-    all_masks = []
-    epoch_auc = 0.0
-    epoch_accuracy = 0.0
-    n = 0.0
-    os.makedirs(dirname, exist_ok=True)
-    for batch, (images, masks) in enumerate(data_test):
-        n += 1
-        with torch.no_grad():
-            if torch.cuda.is_available():
-                images = images.to(device)
-                masks = masks.to(device)
-            images = Variable(images)
-            masks = Variable(masks)
-            outputs = model(images)
-            loss = criterion(outputs, masks)
-
-            thresholded_outputs = (outputs > 0.5).float()
-            all_outputs.append(thresholded_outputs.detach().cpu())
-            all_images.append(images.detach().cpu())
-            all_masks.append(masks.detach().cpu())
-
-            auc, accuracy = metrics_calculator(masks.clone(), outputs.clone())
-            epoch_loss += loss.item()
-
-            epoch_auc += auc
-            epoch_accuracy += accuracy
-            if batch % 1 == 0:
-                print('Batch', str(batch + 1),
-                      'Val loss:', loss.item(),
-                      'Val auc:', auc,
-                      'Val accuracy:', accuracy,
-                      )
-
-    all_outputs = torch.cat(all_outputs)
-    all_images = torch.cat(all_images)
-    all_masks = torch.cat(all_masks)
-    pred_imgs = recompone(all_outputs, 13, 12)  # predictions
-    orig_imgs = recompone(all_images, 13, 12)  # originals
-    gtruth_masks = recompone(all_masks, 13, 12)  # masks
-    kill_border(pred_imgs, test_border_masks)
-    # back to original dimensions
-    orig_imgs = orig_imgs[:, :, 0:565, 0:584]
-    pred_imgs = pred_imgs[:, :, 0:565, 0:584]
-    gtruth_masks = gtruth_masks[:, :, 0:565, 0:584]
-    visualize(group_images(orig_imgs, 1), dirname + "all_originals")
-    visualize(group_images(pred_imgs, 1), dirname + "all_predictions")
-    visualize(group_images(gtruth_masks, 1), dirname + "all_masks")
-
-    return epoch_loss / n, epoch_auc / n, epoch_accuracy / n
+    return epoch_loss / n, epoch_auc / n, epoch_accuracy / n, epoch_jaccard / n
 
 
 def test_model_img(model, data_test, test_border_masks, dirname, device):
@@ -225,14 +172,23 @@ def test_model_img(model, data_test, test_border_masks, dirname, device):
     gtruth_masks = gtruth_masks[:, :, 0:565, 0:584]
 
     # Put more metrics here
-    auc, accuracy = metrics_calculator(gtruth_masks, pred_imgs)
-    pred_imgs = (pred_imgs >= 0.5).astype('int')
+    # Retrive list of performance metric for each image
+    best_cut_offs, auc = mtr.roc_auc(len(pred_imgs), gtruth_masks, pred_imgs, mode_average=False)
+    best_cut_offs = [0.5]*len(pred_imgs)
+    for i in range(len(pred_imgs)):
+        print("Image {} - Best cut off : {}".format(i + 1, best_cut_offs[i]))
+
+    for i in range(len(pred_imgs)):
+        pred_imgs[i] = (pred_imgs[i] >= best_cut_offs[i]).astype('int')
+
+    # After calculating best cut off, recalculate other metrics
+    _, accuracy, jaccard = metrics_calculator(gtruth_masks, pred_imgs, mode_average=False)
 
     visualize(group_images(orig_imgs, 1), dirname + "all_originals")
     visualize(group_images(pred_imgs, 1), dirname + "all_predictions")
     visualize(group_images(gtruth_masks, 1), dirname + "all_masks")
 
-    return auc, accuracy
+    return auc, accuracy, jaccard
 
 
 def extract_narrow_band(input_dir, output_dir, d1=1, d2=1):
@@ -268,7 +224,7 @@ if __name__ == '__main__':
     #                     '../DRIVE/training/narrowband')
     # extract_narrow_band('../DRIVE/test/1st_manual',
     #                     '../DRIVE/test/narrowband')
-    img_path = '/Users/trustingsocial/workspace/image_segmentation_unet/DRIVE/test/2nd_manual/01_manual2.gif'
+    img_path = '../DRIVE/test/2nd_manual/01_manual2.gif'
     img = np.asarray(Image.open(img_path))
 
     fig, (ax1, ax2, ax3, ax4, ax5, ax6) = plt.subplots(nrows=1, ncols=6, figsize=(12, 6),
