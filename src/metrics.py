@@ -1,7 +1,7 @@
 
 import torch
 import numpy as np
-from sklearn.metrics import roc_auc_score, accuracy_score, jaccard_score, roc_curve
+import sklearn.metrics as skmetrics
 
 
 def standardize_for_metrics(masks, preds):
@@ -28,9 +28,9 @@ def roc_auc(batch_size, masks, preds, mode_average=True):
     for pair in zip(preds, masks):
         flat_pred = pair[0].reshape(-1)
         flat_mask = pair[1].reshape(-1).astype(int)
-        fpr, tpr, thresholds = roc_curve(flat_mask, flat_pred)
+        fpr, tpr, thresholds = skmetrics.roc_curve(flat_mask, flat_pred)
         best_cutoff = find_best_cutoff(fpr, tpr, thresholds)
-        score = roc_auc_score(flat_mask, flat_pred)
+        score = skmetrics.roc_auc_score(flat_mask, flat_pred)
         if mode_average:
             total_auc += score
         else:
@@ -47,7 +47,7 @@ def accuracy(batch_size, masks, preds, mode_average=True, cutoff=0.5):
     for pair in zip(preds, masks):
         flat_pred = (pair[0].reshape(-1) >= cutoff).astype(int)
         flat_mask = pair[1].reshape(-1).astype(int)
-        score = accuracy_score(flat_mask, flat_pred)
+        score = skmetrics.accuracy_score(flat_mask, flat_pred)
         if mode_average:
             total_accuracy += score
         else:
@@ -64,7 +64,7 @@ def jaccard(batch_size, masks, preds, mode_average=True, cutoff=0.5):
     for pair in zip(preds, masks):
         flat_pred = (pair[0].reshape(-1) >= cutoff).astype(int)
         flat_mask = pair[1].reshape(-1).astype(int)
-        score = jaccard_score(flat_mask, flat_pred)
+        score = skmetrics.jaccard_score(flat_mask, flat_pred)
         if mode_average:
             total_jaccard += score
         else:
@@ -72,6 +72,29 @@ def jaccard(batch_size, masks, preds, mode_average=True, cutoff=0.5):
     if mode_average:
         return total_jaccard / batch_size
     return score_list
+
+
+def confusion_matrix(batch_size, masks, preds, mode_average=True, cutoff=0.5):
+    total_sens = .0
+    total_spec = .0
+    total_preci = .0
+    score_list = []
+    for pair in zip(preds, masks):
+        flat_pred = (pair[0].reshape(-1) >= cutoff).astype(int)
+        flat_mask = pair[1].reshape(-1).astype(int)
+        tn, fp, fn, tp = skmetrics.confusion_matrix(flat_mask, flat_pred).ravel()
+        sens = tp / (tp + fn)
+        spec = tn / (tn + fp)
+        preci = tp / (tp + fp)
+        if mode_average:
+            total_sens += sens
+            total_spec += spec
+            total_preci += preci
+        else:
+            score_list.append((sens, spec, preci))
+    if mode_average:
+        return total_sens / batch_size, total_spec / batch_size, total_preci / batch_size
+    return zip(*score_list)
 
 
 def find_best_cutoff(fpr, tpr, thresholds):
@@ -83,6 +106,7 @@ def find_best_cutoff(fpr, tpr, thresholds):
             idx = i
             best_value = value
     return thresholds[idx]
+
 
 
 

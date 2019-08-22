@@ -109,7 +109,7 @@ class ContourLossVer2(nn.Module):
         force_outside = (preds - c2).pow(2).mul(1.0 - targets).mul(1- nb_mask).sum(-1).sum(-1)
         if self.normed:
             force_inside = (force_inside + eps)/(targets.mul(nb_mask).sum(-1).sum(-1) + eps)
-            force_outside = (force_outside + eps)/((1 - targets).mul(1 - nb_mask).sum(-1).sum(-1) + eps)
+            force_outside = (force_outside + eps)/((1.0 - targets).mul(1 - nb_mask).sum(-1).sum(-1) + eps)
         if self.withlen:
             contour_len = self.mu * get_length(preds, self.device)
             force = contour_len + force_inside + force_outside

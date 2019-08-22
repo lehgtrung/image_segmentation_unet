@@ -3,44 +3,59 @@ python main.py --mode test\
  --modelpath ../history/AUG10_normed_nolength_adam_1e-05_contour/saved_models/model_epoch_150.pth\
  --lossf contour\
   --hashcode AUG10_normed_nolength --gpu 2
->>>>>
-Test auc:  0.9618661289119402
-Test accuracy:  0.9448909654297987
-<<<<<
+>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>
+Mean auc:  0.9704751062687711
+Mean accuracy:  0.9538640803705426
+Mean jaccard:  0.6152207870769886
+Mean sensitivity:  0.6152207870769886
+Mean specitivity:  0.6152207870769886
+Mean precision:  0.6152207870769886
+<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<
+
 
 python main.py --mode test\
  --modelpath ../history/WED32_adam_1e-05_bce/saved_models/model_epoch_150.pth\
  --lossf bce\
   --hashcode WED32 --gpu 2
->>>>>
-Test auc:  0.9300937982162811
-Test accuracy:  0.9139335248149874
-<<<<<
+>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>
+Mean auc:  0.9692505630857858
+Mean accuracy:  0.9599866415670444
+Mean jaccard:  0.6245727376062621
+Mean sensitivity:  0.6245727376062621
+Mean specitivity:  0.6245727376062621
+Mean precision:  0.6245727376062621
+<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<
+
 
 python main.py --mode test\
  --modelpath ../history/WED32_adam_1e-05_contour/saved_models/model_epoch_150.pth\
  --lossf contour\
   --hashcode WED32 --gpu 2
->>>>>
-Test auc:  0.9499870986749952
-Test accuracy:  0.9387716387206954
-<<<<<
+>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>
+Mean auc:  0.9683523305874362
+Mean accuracy:  0.9596407131397817
+Mean jaccard:  0.622044634822409
+Mean sensitivity:  0.622044634822409
+Mean specitivity:  0.622044634822409
+Mean precision:  0.622044634822409
+<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<
+
 
 python main.py --mode test\
  --modelpath ../history/WED32_adam_1e-05_dice/saved_models/model_epoch_150.pth\
  --lossf dice\
   --hashcode WED32 --gpu 2
->>>>>
-Test auc:  0.881292616782372
-Test accuracy:  0.9524878059825079
-<<<<<
+>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>
+Mean auc:  0.9102452303750045
+Mean accuracy:  0.961343832479429
+Mean jaccard:  0.6384934719233697
+Mean sensitivity:  0.6384934719233697
+Mean specitivity:  0.6384934719233697
+Mean precision:  0.6384934719233697
+<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<
 
 python main.py --mode test\
- --modelpath ../history/AUG17_narowband_adam_1e-05_contour/saved_models/model_epoch_150.pth\
- --lossf contour\
-  --hashcode AUG17_narowband --gpu 2
-
-python main.py --mode test\
- --modelpath ../history/AUG20_narrow_adam_1e-05_contour/saved_models/model_epoch_30.pth\
+ --modelpath ../history/AUG20_narrow_adam_1e-05_contour/saved_models/model_epoch_150.pth\
  --lossf contour\
   --hashcode AUG20_narrow --gpu 2
+

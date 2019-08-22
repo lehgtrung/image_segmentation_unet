@@ -55,12 +55,15 @@ def save_model(model, path, epoch):
     torch.save(model.state_dict(), path+"/model_epoch_{0}.pth".format(epoch))
 
 
-def metrics_calculator(masks, preds, mode_average=True):
+def metrics_calculator(masks, preds, mode_average=True, additional=False):
     batch_size, masks, predictions = mtr.standardize_for_metrics(masks, preds)
     auc_score = mtr.roc_auc(batch_size, masks, predictions, mode_average)
     accuracy_score = mtr.accuracy(batch_size, masks, predictions, mode_average)
-    jaccard_score = mtr.jaccard(batch_size, masks, predictions, mode_average)
-    return auc_score, accuracy_score, jaccard_score
+    if additional:
+        jaccard_score = mtr.jaccard(batch_size, masks, predictions, mode_average)
+        sens_score, spec_score, prec_score = mtr.confusion_matrix(batch_size, masks, predictions, mode_average)
+        return auc_score, accuracy_score, jaccard_score, sens_score, spec_score, prec_score
+    return auc_score, accuracy_score
 
 
 def train_model(epoch, model, data_train, criterion, optimizer, device):
@@ -173,22 +176,17 @@ def test_model_img(model, data_test, test_border_masks, dirname, device):
 
     # Put more metrics here
     # Retrive list of performance metric for each image
-    best_cut_offs, auc = mtr.roc_auc(len(pred_imgs), gtruth_masks, pred_imgs, mode_average=False)
-    best_cut_offs = [0.5]*len(pred_imgs)
-    for i in range(len(pred_imgs)):
-        print("Image {} - Best cut off : {}".format(i + 1, best_cut_offs[i]))
-
-    for i in range(len(pred_imgs)):
-        pred_imgs[i] = (pred_imgs[i] >= best_cut_offs[i]).astype('int')
+    # pred_imgs = (pred_imgs >= 0.5).astype('int')
 
     # After calculating best cut off, recalculate other metrics
-    _, accuracy, jaccard = metrics_calculator(gtruth_masks, pred_imgs, mode_average=False)
+    (_, auc), accuracy, jaccard, sensitivity, specitivity, precision \
+        = metrics_calculator(gtruth_masks, pred_imgs, mode_average=False, additional=True)
 
     visualize(group_images(orig_imgs, 1), dirname + "all_originals")
     visualize(group_images(pred_imgs, 1), dirname + "all_predictions")
     visualize(group_images(gtruth_masks, 1), dirname + "all_masks")
 
-    return auc, accuracy, jaccard
+    return auc, accuracy, jaccard, sensitivity, specitivity, precision
 
 
 def extract_narrow_band(input_dir, output_dir, d1=1, d2=1):
@@ -235,7 +233,7 @@ if __name__ == '__main__':
     morp_img = dilated_img - erosed_img
     narr_img = img * morp_img
     # narr_img2 = (1 - img) * morp_img
-    narr_img2 = (1 - img) * (1 - morp_img)
+    narr_img2 = (1 - img) * morp_img
 
     ax1.imshow(img, cmap=plt.cm.gray)
     ax1.axis('off')
@@ -245,7 +243,7 @@ if __name__ == '__main__':
     ax2.axis('off')
     ax2.set_title('Dilated image', fontsize=10)
 
-    ax3.imshow(1 - img, cmap=plt.cm.gray)
+    ax3.imshow(erosed_img, cmap=plt.cm.gray)
     ax3.axis('off')
     ax3.set_title('Erosed image', fontsize=10)
 
@@ -255,11 +253,11 @@ if __name__ == '__main__':
 
     ax5.imshow(narr_img, cmap=plt.cm.gray)
     ax5.axis('off')
-    ax5.set_title('Narrow band image', fontsize=10)
+    ax5.set_title('target * (1 - mask)', fontsize=10)
 
     ax6.imshow(narr_img2, cmap=plt.cm.gray)
     ax6.axis('off')
-    ax6.set_title('Narrow band reversed image', fontsize=10)
+    ax6.set_title('(1 - target) * (1 - mask)', fontsize=10)
 
     fig.tight_layout()
 

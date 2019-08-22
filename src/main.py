@@ -157,18 +157,25 @@ def main():
         print("Initializing Testing!")
         model.load_state_dict(torch.load(modelpath))
         model.eval()
-        test_auc, test_accuracy, test_jaccard = test_model_img(model,
-                                                               DRIVE_test_load,
-                                                               test_border_masks,
-                                                               f'{image_save_path}/',
-                                                               device)
+        test_auc, test_accuracy, test_jaccard, test_sensitivity, test_specitivity, test_precision\
+            = test_model_img(model,
+                             DRIVE_test_load,
+                             test_border_masks,
+                             f'{image_save_path}/',
+                             device)
         print('Test auc: ', test_auc)
         print('Test accuracy: ', test_accuracy)
         print('Test jaccard: ', test_jaccard)
+        print('Test sensitivity: ', test_sensitivity)
+        print('Test specitivity: ', test_specitivity)
+        print('Test precision: ', test_precision)
         print(">>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>")
         print('Mean auc: ', sum(test_auc)/len(test_auc))
         print('Mean accuracy: ', sum(test_accuracy)/len(test_accuracy))
         print('Mean jaccard: ', sum(test_jaccard)/len(test_jaccard))
+        print('Mean sensitivity: ', sum(test_sensitivity)/len(test_sensitivity))
+        print('Mean specitivity: ', sum(test_specitivity)/len(test_specitivity))
+        print('Mean precision: ', sum(test_precision)/len(test_precision))
         print("<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<")
 
 
