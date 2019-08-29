@@ -341,16 +341,15 @@ def recompone_overlap(preds, img_h, img_w, stride_h, stride_w):
 
 # Recompone the full images with the patches
 def recompone(data, N_h, N_w):
-    assert data.shape[1] == 1 or data.shape[1] == 3  #check the channel is 1 or 3
+    assert data.shape[1] == 1 or data.shape[1] == 3  # check the channel is 1 or 3
     assert len(data.shape) == 4
     N_pacth_per_img = N_w * N_h
     assert data.shape[0] % N_pacth_per_img == 0
     N_full_imgs = int(data.shape[0]/N_pacth_per_img)
     patch_h = data.shape[2]
     patch_w = data.shape[3]
-    N_pacth_per_img = N_w*N_h
     # define and start full recompone
-    full_recomp = np.empty((N_full_imgs,data.shape[1],N_h*patch_h,N_w*patch_w))
+    full_recomp = np.empty((N_full_imgs, data.shape[1],N_h*patch_h,N_w*patch_w))
     k = 0  # iter full img
     s = 0  # iter single patch
     while s < data.shape[0]:

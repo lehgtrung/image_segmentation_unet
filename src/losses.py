@@ -1,4 +1,3 @@
-
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
@@ -48,24 +47,35 @@ def get_length(phi, device):
 
     grad = (grad_x.pow(2) + grad_y.pow(2) + 1e-5).sqrt()
     dd = delta_dirac(phi - 0.5)
-    return torch.mul(grad, dd).sum(-1).sum(-1)
+    return torch.mul(grad, dd).sum(-1).sum(-1) / (48 * 48)
 
 
-def heaviside1(x, eps=1, pi=np.pi):
+def get_length_v2(phi):
+    x = phi[:, :, 1:, :] - phi[:, :, :-1, :]
+    y = phi[:, :, :, 1:] - phi[:, :, :, :-1]
+
+    delta_x = x[:, :, 1:, :-2] ** 2
+    delta_y = y[:, :, :-2, 1:] ** 2
+    delta_u = delta_x + delta_y
+
+    return torch.sqrt(delta_u + 1e-5).mean(-1).mean(-1)
+
+
+def heaviside1(x, eps=1e-5, pi=np.pi):
     res = x.clone()
     res[x > eps] = 1.0
     res[x < -eps] = 0.0
     a = x[(x >= -eps) & (x <= eps)]
-    res[(x >= -eps) & (x <= eps)] = (torch.sin(pi * a/eps)*(1/pi) + a/pi + 1)*0.5
+    res[(x >= -eps) & (x <= eps)] = (torch.sin(pi * a / eps) * (1 / pi) + a / pi + 1) * 0.5
     return res
 
 
-def heaviside2(x, eps=1e-5, pi=np.pi):
-    return 1/2 * (1 + 2/pi * torch.atan(x.div(eps)))
+def heaviside2(x, eps=1, pi=np.pi):
+    return 1 / 2 * (1 + 2 / pi * torch.atan(x.div(eps)))
 
 
 def delta_dirac(x, eps=1, pi=np.pi):
-    return eps / (pi * (eps**2 + x.pow(2)))
+    return eps / (pi * (eps ** 2 + x ** 2))
 
 
 class ContourLoss(nn.Module):
@@ -83,8 +93,8 @@ class ContourLoss(nn.Module):
         force_inside = (preds - c1).pow(2).mul(targets).sum(-1).sum(-1)
         force_outside = (preds - c2).pow(2).mul(1.0 - targets).sum(-1).sum(-1)
         if self.normed:
-            force_inside = (force_inside + eps)/(targets.sum(-1).sum(-1) + eps)
-            force_outside = (force_outside + eps)/((1 - targets).sum(-1).sum(-1) + eps)
+            force_inside = (force_inside + eps) / (targets.sum(-1).sum(-1) + eps)
+            force_outside = (force_outside + eps) / ((1 - targets).sum(-1).sum(-1) + eps)
         if self.withlen:
             contour_len = self.mu * get_length(preds, self.device)
             force = contour_len + force_inside + force_outside
@@ -93,23 +103,85 @@ class ContourLoss(nn.Module):
         return torch.mean(force)
 
 
-class ContourLossVer2(nn.Module):
+class ContourLossV4(nn.Module):
+    """"""
     def __init__(self, device, mu, normed, withlen):
         self.normed = normed
         self.withlen = withlen
         self.device = device
         self.mu = mu
-        super(ContourLossVer2, self).__init__()
+        super(ContourLossV4, self).__init__()
+
+    def forward(self, preds, targets):
+        c1 = 1.0
+        c2 = 0.0
+        eps = 1e-7
+        force_inside = (preds - c1).pow(2).mul(targets).sum(-1).sum(-1)
+        force_outside = (preds - c2).pow(2).mul(1.0 - targets).sum(-1).sum(-1)
+
+        if self.normed:
+            force_inside = (force_inside + eps) / (targets.sum(-1).sum(-1) + eps)
+            force_outside = (force_outside + eps) / ((1 - targets).sum(-1).sum(-1) + eps)
+        if self.withlen:
+            contour_len = self.mu * get_length(preds, self.device)
+            force = contour_len + force_inside + force_outside
+        else:
+            force = force_inside + force_outside
+        return torch.mean(force)
+
+
+class ContourLossV3(nn.Module):
+    def __init__(self, device, mu, normed, withlen):
+        self.normed = normed
+        self.withlen = withlen
+        self.device = device
+        self.mu = mu
+        super(ContourLossV3, self).__init__()
+
+    def forward(self, preds, targets, nb_mask):
+        c1 = 1.0
+        c2 = 0.0
+        eps = 1e-7
+
+        # Original level sets
+        force_inside = (preds - c1).pow(2).mul(targets).sum(-1).sum(-1)
+        force_outside = (preds - c2).pow(2).mul(1.0 - targets).sum(-1).sum(-1)
+
+        # Narrow band level sets
+        nb_force_inside = (preds - c1).pow(2).mul(targets).mul(nb_mask).sum(-1).sum(-1)
+        nb_force_outside = (preds - c2).pow(2).mul(1.0 - targets).mul(nb_mask).sum(-1).sum(-1)
+
+        force_inside = (force_inside + eps) / (targets.sum(-1).sum(-1) + eps)
+        force_outside = (force_outside + eps) / ((1 - targets).sum(-1).sum(-1) + eps)
+
+        nb_force_inside = (nb_force_inside + eps) / (targets.mul(nb_mask).sum(-1).sum(-1) + eps)
+        nb_force_outside = (nb_force_outside + eps) / ((1.0 - targets).mul(nb_mask).sum(-1).sum(-1) + eps)
+
+        if self.withlen:
+            contour_len = self.mu * get_length(preds, self.device)
+            force = contour_len + force_inside + force_outside + nb_force_inside + nb_force_outside
+        else:
+            force = force_inside + force_outside + nb_force_inside + nb_force_outside
+        return torch.mean(force)
+
+
+class ContourLossV2(nn.Module):
+    def __init__(self, device, mu, normed, withlen):
+        self.normed = normed
+        self.withlen = withlen
+        self.device = device
+        self.mu = mu
+        super(ContourLossV2, self).__init__()
 
     def forward(self, preds, targets, nb_mask):
         c1 = 1.0
         c2 = 0.0
         eps = 1e-7
         force_inside = (preds - c1).pow(2).mul(targets).mul(nb_mask).sum(-1).sum(-1)
-        force_outside = (preds - c2).pow(2).mul(1.0 - targets).mul(1- nb_mask).sum(-1).sum(-1)
+        force_outside = (preds - c2).pow(2).mul(1.0 - targets).mul(nb_mask).sum(-1).sum(-1)
         if self.normed:
-            force_inside = (force_inside + eps)/(targets.mul(nb_mask).sum(-1).sum(-1) + eps)
-            force_outside = (force_outside + eps)/((1.0 - targets).mul(1 - nb_mask).sum(-1).sum(-1) + eps)
+            force_inside = (force_inside + eps) / (targets.mul(nb_mask).sum(-1).sum(-1) + eps)
+            force_outside = (force_outside + eps) / ((1.0 - targets).mul(nb_mask).sum(-1).sum(-1) + eps)
         if self.withlen:
             contour_len = self.mu * get_length(preds, self.device)
             force = contour_len + force_inside + force_outside
@@ -131,7 +203,5 @@ class FocalLoss(nn.Module):
         else:
             BCE_loss = F.binary_cross_entropy(inputs, targets)
         pt = torch.exp(-BCE_loss)
-        F_loss = self.alpha * (1 - pt)**self.gamma * BCE_loss
+        F_loss = self.alpha * (1 - pt) ** self.gamma * BCE_loss
         return torch.mean(F_loss)
-
-

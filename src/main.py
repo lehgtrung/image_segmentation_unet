@@ -2,9 +2,12 @@
 from utils import *
 
 from dataset import DRIVEDataset
-from losses import ContourLoss, ContourLossVer2, BinaryCrossEntropyLoss2d, DiceLoss, FocalLoss
+from losses import ContourLoss, ContourLossV3, ContourLossV2, BinaryCrossEntropyLoss2d, DiceLoss, FocalLoss
 from unet import UNet1024
 import argparse
+import warnings
+from sklearn.exceptions import UndefinedMetricWarning
+warnings.filterwarnings(action='ignore', category=UndefinedMetricWarning)
 
 # ------------Path of the images --------------------------------------------------------------
 # train
@@ -30,14 +33,14 @@ def arg_parse():
     parser = argparse.ArgumentParser()
     parser.add_argument('--mode', help='Train or test', dest='mode', default='train', required=True)
     parser.add_argument('--modelpath', help='Path to model for testing', dest='modelpath', required=False)
-    parser.add_argument('--epochs', help='Number of epochs', dest='epochs', type=int, default=150, required=False)
+    parser.add_argument('--epochs', help='Number of epochs', dest='epochs', type=int, default=1000, required=False)
     parser.add_argument('--opt', help='Optimizer', dest='opt', default='adam', required=False)
     parser.add_argument('--hashcode', help='Hashcode for experiments', dest='hashcode', default='', required=False)
     parser.add_argument('--lr', help='Learning rate', dest='lr', default=1e-5, type=float, required=False)
     parser.add_argument('--lossf', help='Loss type', dest='lossf', default='bce')
     parser.add_argument('--gpu', help='Which gpu', dest='gpu', required=True)
     parser.add_argument('--withlen', help='With contour len', dest='withlen', default='false', required=False)
-    parser.add_argument('--mu', help='Value of mu', dest='mu', required=False, default=0.1, type=float)
+    parser.add_argument('--mu', help='Value of mu', dest='mu', required=False, default=1, type=float)
     parser.add_argument('--normed', help='Normalized contour', dest='normed', required=False, default='true')
     args = parser.parse_args()
     return args
@@ -87,7 +90,7 @@ def main():
             DRIVE_test_narrowBand,
             patch_height,
             patch_width,
-            -1
+            None
         )
         DRIVE_test_load = \
             torch.utils.data.DataLoader(dataset=DRIVE_test,
@@ -104,7 +107,11 @@ def main():
     elif lossf == 'dice':
         criterion = DiceLoss()
     elif lossf == 'contour':
-        criterion = ContourLossVer2(device=device, mu=mu, normed=normed, withlen=withlen)
+        criterion = ContourLoss(device=device, mu=mu, normed=normed, withlen=withlen)
+    elif lossf == 'contour-v3':
+        criterion = ContourLossV3(device=device, mu=mu, normed=normed, withlen=withlen)
+    elif lossf == 'contour-v2':
+        criterion = ContourLossV2(device=device, mu=mu, normed=normed, withlen=withlen)
     elif lossf == 'focal':
         criterion = FocalLoss()
     else:
@@ -118,7 +125,7 @@ def main():
 
     # Saving History to csv
     header = ['epoch', 'train loss', 'train auc', 'train accuracy',
-              'val loss', 'val auc', 'val accuracy', 'val_jaccard']
+              'val loss', 'val auc', 'val accuracy']
     save_file_name = f"../history/{hash_code}/history.csv"
     save_dir = f"../history/{hash_code}"
 
@@ -129,35 +136,44 @@ def main():
     # Train
     if mode == 'train':
         print("Initializing Training!")
+        min_loss = 1000
+        best_epoch = 0
+        early_stop_count = 0
+        max_count = 5
         for i in range(n_epochs):
-            # train the model
-            train_loss, train_auc, train_acc = train_model(i, model, DRIVE_train_load,
-                                                           criterion, optimizer, device)
+            train_loss, train_acc = train_model(i, model, DRIVE_train_load,
+                                                criterion, optimizer, device)
             print('Epoch', str(i+1),
                   'Train loss:', train_loss,
-                  'Train auc:', train_auc,
                   'Train acc:', train_acc
                   )
 
             if (i+1) % 1 == 0:
-                val_loss, val_auc, val_acc, val_jaccard = validate_model(model, DRIVE_val_load, criterion, device)
+                val_loss, val_acc = validate_model(model, DRIVE_val_load, criterion, device)
                 print('Epoch', str(i+1),
                       'Val loss:', val_loss,
-                      'Val auc:', val_auc,
                       'Val acc:', val_acc,
-                      'Val jaccard:', val_jaccard
                       )
-                values = [i + 1, train_loss, train_auc, train_acc,
-                          val_loss, val_auc, val_acc, val_jaccard]
+                values = [i + 1, train_loss, train_acc,
+                          val_loss, val_acc]
                 export_history(header, values, save_dir, save_file_name)
 
-            if (i+1) % 10 == 0:  # save model every 1 epoch
-                save_model(model, model_save_dir, i+1)
+                if val_loss < min_loss:
+                    early_stop_count = 0
+                    min_loss = val_loss
+                    best_epoch = i
+                    save_model(model, model_save_dir, i+1)
+                else:
+                    early_stop_count += 1
+                    if early_stop_count > max_count:
+                        print('Traning can not improve from epoch {}\tBest loss: {}'.format(best_epoch, min_loss))
+                        break
     else:
         print("Initializing Testing!")
         model.load_state_dict(torch.load(modelpath))
         model.eval()
-        test_auc, test_accuracy, test_jaccard, test_sensitivity, test_specitivity, test_precision\
+        test_auc, test_accuracy, test_jaccard, test_sensitivity, test_specitivity, \
+            test_precision, test_f1, test_pr_auc \
             = test_model_img(model,
                              DRIVE_test_load,
                              test_border_masks,
@@ -169,13 +185,16 @@ def main():
         print('Test sensitivity: ', test_sensitivity)
         print('Test specitivity: ', test_specitivity)
         print('Test precision: ', test_precision)
+        print('Test f1: ', test_f1)
+        print('Test PR-AUC: ', test_pr_auc)
         print(">>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>")
-        print('Mean auc: ', sum(test_auc)/len(test_auc))
-        print('Mean accuracy: ', sum(test_accuracy)/len(test_accuracy))
-        print('Mean jaccard: ', sum(test_jaccard)/len(test_jaccard))
-        print('Mean sensitivity: ', sum(test_sensitivity)/len(test_sensitivity))
-        print('Mean specitivity: ', sum(test_specitivity)/len(test_specitivity))
-        print('Mean precision: ', sum(test_precision)/len(test_precision))
+        print('AUC mean: {} - std: {}'.format(*mean_std(test_auc)))
+        print('ACCURACY mean: {} - std: {}'.format(*mean_std(test_accuracy)))
+        print('SENS mean: {} - std: {}'.format(*mean_std(test_sensitivity)))
+        print('SPEC mean: {} - std: {}'.format(*mean_std(test_specitivity)))
+        print('PRECISION mean: {} - std: {}'.format(*mean_std(test_precision)))
+        print('F1 mean: {} - std: {}'.format(*mean_std(test_f1)))
+        print('PR AUC: {} - std: {}'.format(*mean_std(test_pr_auc)))
         print("<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<")
 
 

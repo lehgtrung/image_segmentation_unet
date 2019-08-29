@@ -57,19 +57,19 @@ def save_model(model, path, epoch):
 
 def metrics_calculator(masks, preds, mode_average=True, additional=False):
     batch_size, masks, predictions = mtr.standardize_for_metrics(masks, preds)
-    auc_score = mtr.roc_auc(batch_size, masks, predictions, mode_average)
     accuracy_score = mtr.accuracy(batch_size, masks, predictions, mode_average)
     if additional:
+        roc_auc_score = mtr.roc_auc(batch_size, masks, predictions, mode_average)
         jaccard_score = mtr.jaccard(batch_size, masks, predictions, mode_average)
-        sens_score, spec_score, prec_score = mtr.confusion_matrix(batch_size, masks, predictions, mode_average)
-        return auc_score, accuracy_score, jaccard_score, sens_score, spec_score, prec_score
-    return auc_score, accuracy_score
+        sens_score, spec_score, prec_score, f1_score = mtr.confusion_matrix(batch_size, masks, predictions, mode_average)
+        pr_auc_score = mtr.precision_recall_auc(batch_size, masks, predictions, mode_average)
+        return roc_auc_score, accuracy_score, jaccard_score, sens_score, spec_score, prec_score, f1_score, pr_auc_score
+    return accuracy_score
 
 
 def train_model(epoch, model, data_train, criterion, optimizer, device):
     model.train()
     epoch_loss = 0.0
-    epoch_auc = 0.0
     epoch_accuracy = 0.0
     n = 0.0
     for batch, (images, masks, narrowbands) in enumerate(data_train):
@@ -84,33 +84,29 @@ def train_model(epoch, model, data_train, criterion, optimizer, device):
         outputs = model(images)
         try:
             loss = criterion(outputs, masks, narrowbands)
-        except ValueError:
+        except TypeError:
             loss = criterion(outputs, masks)
         optimizer.zero_grad()
         loss.backward()
         optimizer.step()
 
-        auc, accuracy = metrics_calculator(masks.clone(), outputs.clone())
+        accuracy = metrics_calculator(masks.clone(), outputs.clone())
         epoch_loss += loss.item()
 
-        epoch_auc += auc
         epoch_accuracy += accuracy
-        if batch % 100 == 0:
+        if batch % 1000 == 0:
             print('Epoch', str(epoch + 1),
                   'Batch', str(batch + 1),
                   'Train loss:', loss.item(),
-                  'Train auc:', auc,
                   'Train acc:', accuracy,
                   )
-    return epoch_loss/n, epoch_auc/n, epoch_accuracy/n
+    return epoch_loss/n, epoch_accuracy/n
 
 
 def validate_model(model, data_test, criterion, device):
     model.eval()
     epoch_loss = .0
-    epoch_auc = .0
     epoch_accuracy = .0
-    epoch_jaccard = .0
     n = 0.0
     for batch, (images, masks, narrowbands) in enumerate(data_test):
         n += 1
@@ -125,22 +121,13 @@ def validate_model(model, data_test, criterion, device):
             outputs = model(images)
             try:
                 loss = criterion(outputs, masks, narrowbands)
-            except ValueError:
+            except TypeError:
                 loss = criterion(outputs, masks)
-            auc, accuracy, jaccard = metrics_calculator(masks.clone(), outputs.clone())
+            accuracy = metrics_calculator(masks.clone(), outputs.clone())
             epoch_loss += loss.item()
 
-            epoch_auc += auc
             epoch_accuracy += accuracy
-            epoch_jaccard += jaccard
-            if batch % 100 == 0:
-                print('Batch', str(batch + 1),
-                      'Val loss:', loss.item(),
-                      'Val auc:', auc,
-                      'Val accuracy:', accuracy,
-                      'Val jaccard:', jaccard
-                      )
-    return epoch_loss / n, epoch_auc / n, epoch_accuracy / n, epoch_jaccard / n
+    return epoch_loss / n, epoch_accuracy / n
 
 
 def test_model_img(model, data_test, test_border_masks, dirname, device):
@@ -179,14 +166,14 @@ def test_model_img(model, data_test, test_border_masks, dirname, device):
     # pred_imgs = (pred_imgs >= 0.5).astype('int')
 
     # After calculating best cut off, recalculate other metrics
-    (_, auc), accuracy, jaccard, sensitivity, specitivity, precision \
+    (_, auc), accuracy, jaccard, sensitivity, specitivity, precision, f1, pr_auc \
         = metrics_calculator(gtruth_masks, pred_imgs, mode_average=False, additional=True)
 
     visualize(group_images(orig_imgs, 1), dirname + "all_originals")
     visualize(group_images(pred_imgs, 1), dirname + "all_predictions")
     visualize(group_images(gtruth_masks, 1), dirname + "all_masks")
 
-    return auc, accuracy, jaccard, sensitivity, specitivity, precision
+    return auc, accuracy, jaccard, sensitivity, specitivity, precision, f1, pr_auc
 
 
 def extract_narrow_band(input_dir, output_dir, d1=1, d2=1):
@@ -215,6 +202,12 @@ def split_arrays(size, *args):
     for arr in args:
         assert len(arr) == len(indices)
         yield arr[indices][n:], arr[indices][:n]
+
+
+def mean_std(values):
+    mean = sum(values) / len(values)
+    std = 1/len(values) * sum([(x - mean)**2 for x in values])
+    return mean, std
 
 
 if __name__ == '__main__':

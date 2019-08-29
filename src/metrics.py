@@ -25,18 +25,22 @@ def roc_auc(batch_size, masks, preds, mode_average=True):
     """ Area under ROC curve between predicted probabilities and binary masks """
     total_auc = .0
     score_list = []
+    n = 0
     for pair in zip(preds, masks):
         flat_pred = pair[0].reshape(-1)
         flat_mask = pair[1].reshape(-1).astype(int)
         fpr, tpr, thresholds = skmetrics.roc_curve(flat_mask, flat_pred)
         best_cutoff = find_best_cutoff(fpr, tpr, thresholds)
-        score = skmetrics.roc_auc_score(flat_mask, flat_pred)
-        if mode_average:
-            total_auc += score
-        else:
-            score_list.append([best_cutoff, score])
+        try:
+            score = skmetrics.roc_auc_score(flat_mask, flat_pred)
+            if mode_average:
+                total_auc += score
+            else:
+                score_list.append([best_cutoff, score])
+        except ValueError:
+            n += 1
     if mode_average:
-        return total_auc / batch_size
+        return total_auc / (batch_size - n)
     return list(zip(*score_list))
 
 
@@ -78,6 +82,7 @@ def confusion_matrix(batch_size, masks, preds, mode_average=True, cutoff=0.5):
     total_sens = .0
     total_spec = .0
     total_preci = .0
+    total_f1 = .0
     score_list = []
     for pair in zip(preds, masks):
         flat_pred = (pair[0].reshape(-1) >= cutoff).astype(int)
@@ -86,15 +91,36 @@ def confusion_matrix(batch_size, masks, preds, mode_average=True, cutoff=0.5):
         sens = tp / (tp + fn)
         spec = tn / (tn + fp)
         preci = tp / (tp + fp)
+        f1 = (2 * preci * sens)/(preci + sens)
         if mode_average:
             total_sens += sens
             total_spec += spec
             total_preci += preci
+            total_f1 += f1
         else:
-            score_list.append((sens, spec, preci))
+            score_list.append((sens, spec, preci, f1))
     if mode_average:
-        return total_sens / batch_size, total_spec / batch_size, total_preci / batch_size
+        return total_sens / batch_size, total_spec / batch_size, total_preci / batch_size, total_f1 / batch_size
     return zip(*score_list)
+
+
+def precision_recall_auc(batch_size, masks, preds, mode_average=True, cutoff=0.5):
+    total_pr_auc = .0
+    score_list = []
+    for pair in zip(preds, masks):
+        flat_pred = (pair[0].reshape(-1) >= cutoff).astype(int)
+        flat_mask = pair[1].reshape(-1).astype(int)
+        precision, recall, thresholds = skmetrics.precision_recall_curve(flat_mask, flat_pred)
+        precision = np.fliplr([precision])[0]  # so the array is increasing (you won't get negative AUC)
+        recall = np.fliplr([recall])[0]  # so the array is increasing (you won't get negative AUC)
+        pr_auc = np.trapz(precision, recall)
+        if mode_average:
+            total_pr_auc += pr_auc
+        else:
+            score_list.append(pr_auc)
+    if mode_average:
+        return total_pr_auc / batch_size
+    return score_list
 
 
 def find_best_cutoff(fpr, tpr, thresholds):
