@@ -46,8 +46,9 @@ def get_length(phi, device):
     grad_y = F.conv2d(phi, conv_filter_y, padding=1)
 
     grad = (grad_x.pow(2) + grad_y.pow(2) + 1e-5).sqrt()
-    dd = delta_dirac(phi - 0.5)
-    return torch.mul(grad, dd).sum(-1).sum(-1) / (48 * 48)
+    # dd = delta_dirac(phi - 0.5)
+    # return torch.mul(grad, dd).sum(-1).sum(-1)
+    return grad.sum(-1).sum(-1)
 
 
 def get_length_v2(phi):
@@ -79,11 +80,13 @@ def delta_dirac(x, eps=1, pi=np.pi):
 
 
 class ContourLoss(nn.Module):
-    def __init__(self, device, mu, normed, withlen):
+    def __init__(self, device, mu, alpha, beta, normed, withlen):
         self.normed = normed
         self.withlen = withlen
         self.device = device
         self.mu = mu
+        self.alpha = alpha
+        self.beta = beta
         super(ContourLoss, self).__init__()
 
     def forward(self, preds, targets):
@@ -97,9 +100,9 @@ class ContourLoss(nn.Module):
             force_outside = (force_outside + eps) / ((1 - targets).sum(-1).sum(-1) + eps)
         if self.withlen:
             contour_len = self.mu * get_length(preds, self.device)
-            force = contour_len + force_inside + force_outside
+            force = self.mu * contour_len + self.alpha * force_inside + self.beta * force_outside
         else:
-            force = force_inside + force_outside
+            force = self.alpha * force_inside + self.beta * force_outside
         return torch.mean(force)
 
 
@@ -113,20 +116,24 @@ class ContourLossV4(nn.Module):
         super(ContourLossV4, self).__init__()
 
     def forward(self, preds, targets):
-        c1 = 1.0
-        c2 = 0.0
-        eps = 1e-7
-        force_inside = (preds - c1).pow(2).mul(targets).sum(-1).sum(-1)
-        force_outside = (preds - c2).pow(2).mul(1.0 - targets).sum(-1).sum(-1)
+        preds = preds.squeeze(1)
+        targets = targets.squeeze(1)
+        # CE term
+        ce = (preds - targets).pow(2).mean(-1).mean(-1)
 
-        if self.normed:
-            force_inside = (force_inside + eps) / (targets.sum(-1).sum(-1) + eps)
-            force_outside = (force_outside + eps) / ((1 - targets).sum(-1).sum(-1) + eps)
-        if self.withlen:
-            contour_len = self.mu * get_length(preds, self.device)
-            force = contour_len + force_inside + force_outside
-        else:
-            force = force_inside + force_outside
+        # Contour term
+        tp = targets * preds
+        mtp = (1 - targets) * preds
+        n_postives = targets.sum(-1).sum(-1) + 1e-7
+        n_negatives = (1 - targets).sum(-1).sum(-1) + 1e-7
+
+        c1 = (tp.sum(-1).sum(-1) / n_postives).unsqueeze(-1).unsqueeze(-1)
+        c2 = (mtp.sum(-1).sum(-1) / n_negatives).unsqueeze(-1).unsqueeze(-1)
+
+        force_inside = (preds - c1).pow(2).sum(-1).sum(-1) / n_postives
+        force_outside = (preds - c2).pow(2).sum(-1).sum(-1) / n_negatives
+
+        force = ce + force_inside + force_outside
         return torch.mean(force)
 
 

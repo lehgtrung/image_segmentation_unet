@@ -82,10 +82,11 @@ def train_model(epoch, model, data_train, criterion, optimizer, device):
         masks = Variable(masks)
         narrowbands = Variable(narrowbands)
         outputs = model(images)
-        try:
-            loss = criterion(outputs, masks, narrowbands)
-        except TypeError:
-            loss = criterion(outputs, masks)
+        # try:
+        #     loss = criterion(outputs, masks, narrowbands)
+        # except TypeError:
+        #     loss = criterion(outputs, masks)
+        loss = criterion(outputs, masks)
         optimizer.zero_grad()
         loss.backward()
         optimizer.step()
@@ -128,6 +129,54 @@ def validate_model(model, data_test, criterion, device):
 
             epoch_accuracy += accuracy
     return epoch_loss / n, epoch_accuracy / n
+
+
+def test_model(model, data_test, criterion, test_border_masks, dirname, device):
+    model.eval()
+    all_outputs = []
+    all_images = []
+    all_masks = []
+    os.makedirs(dirname, exist_ok=True)
+    for batch, (images, masks) in enumerate(data_test):
+        with torch.no_grad():
+            if torch.cuda.is_available():
+                images = images.to(device)
+                masks = masks.to(device)
+            images = Variable(images)
+            masks = Variable(masks)
+            outputs = model(images)
+
+            all_outputs.append(outputs.detach().cpu())
+            all_images.append(images.detach().cpu())
+            all_masks.append(masks.detach().cpu())
+
+    all_outputs = torch.cat(all_outputs)
+    all_images = torch.cat(all_images)
+    all_masks = torch.cat(all_masks)
+    pred_imgs = recompone(all_outputs, 13, 12)  # predictions
+    orig_imgs = recompone(all_images, 13, 12)  # originals
+    gtruth_masks = recompone(all_masks, 13, 12)  # masks
+    kill_border(pred_imgs, test_border_masks)
+    # back to original dimensions
+    orig_imgs = orig_imgs[:, :, 0:565, 0:584]
+    pred_imgs = pred_imgs[:, :, 0:565, 0:584]
+    gtruth_masks = gtruth_masks[:, :, 0:565, 0:584]
+
+    # Put more metrics here
+    # Retrive list of performance metric for each image
+    # pred_imgs = (pred_imgs >= 0.5).astype('int')
+
+    # After calculating best cut off, recalculate other metrics
+    (_, auc), accuracy, jaccard, sensitivity, specitivity, precision, f1, pr_auc \
+        = metrics_calculator(gtruth_masks, pred_imgs, mode_average=False, additional=True)
+
+    loss = criterion(torch.from_numpy(gtruth_masks).float().to(device), torch.from_numpy(pred_imgs).float().to(device))
+
+    # visualize(group_images(orig_imgs, 1), dirname + "all_originals")
+    visualize(group_images(pred_imgs, 1), dirname + "all_predictions")
+    # visualize(group_images(gtruth_masks, 1), dirname + "all_masks")
+
+    return loss, auc, accuracy, jaccard, sensitivity, specitivity, precision, f1, pr_auc
 
 
 def test_model_img(model, data_test, test_border_masks, dirname, device):

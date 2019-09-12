@@ -2,7 +2,7 @@
 from utils import *
 
 from dataset import DRIVEDataset
-from losses import ContourLoss, ContourLossV3, ContourLossV2, BinaryCrossEntropyLoss2d, DiceLoss, FocalLoss
+from losses import ContourLoss, ContourLossV3, ContourLossV2, ContourLossV4, BinaryCrossEntropyLoss2d, DiceLoss, FocalLoss
 from unet import UNet1024
 import argparse
 import warnings
@@ -41,6 +41,8 @@ def arg_parse():
     parser.add_argument('--gpu', help='Which gpu', dest='gpu', required=True)
     parser.add_argument('--withlen', help='With contour len', dest='withlen', default='false', required=False)
     parser.add_argument('--mu', help='Value of mu', dest='mu', required=False, default=1, type=float)
+    parser.add_argument('--alpha', help='Value of alpha', dest='alpha', required=False, default=1, type=float)
+    parser.add_argument('--beta', help='Value of beta', dest='beta', required=False, default=1, type=float)
     parser.add_argument('--normed', help='Normalized contour', dest='normed', required=False, default='true')
     args = parser.parse_args()
     return args
@@ -58,6 +60,8 @@ def main():
     withlen = args.withlen.lower() == 'true'
     normed = args.normed.lower() == 'true'
     mu = args.mu
+    alpha = args.alpha
+    beta = args.beta
     modelpath = args.modelpath
     if mode == 'test' and not modelpath:
         raise ValueError("Need model path for testing!!")
@@ -70,18 +74,32 @@ def main():
             DRIVE_train_narrowBand,
             patch_height,
             patch_width,
-            N_subimgs
+            N_subimgs,
+            val_size=0
         )
         print(len(DRIVE_train))
 
-        DRIVE_valid = DRIVE_train.get_validation_dataset()
+        # DRIVE_valid = DRIVE_train.get_validation_dataset()
         DRIVE_train_load = \
             torch.utils.data.DataLoader(dataset=DRIVE_train,
-                                        batch_size=32, shuffle=True)
+                                        batch_size=128, shuffle=True)
 
+        # DRIVE_val_load = \
+        #     torch.utils.data.DataLoader(dataset=DRIVE_valid,
+        #                                 batch_size=128, shuffle=True)
+        DRIVE_valid = DRIVEDataset(
+            "test",
+            DRIVE_test_imgs_original,
+            DRIVE_test_groundTruth,
+            DRIVE_test_narrowBand,
+            patch_height,
+            patch_width,
+            None
+        )
         DRIVE_val_load = \
             torch.utils.data.DataLoader(dataset=DRIVE_valid,
-                                        batch_size=32, shuffle=True)
+                                        batch_size=128, shuffle=False)
+
     else:
         DRIVE_test = DRIVEDataset(
             "test",
@@ -94,7 +112,7 @@ def main():
         )
         DRIVE_test_load = \
             torch.utils.data.DataLoader(dataset=DRIVE_test,
-                                        batch_size=32, shuffle=False)
+                                        batch_size=128, shuffle=False)
 
     shape = (1, 48, 48)
     if torch.cuda.is_available():
@@ -107,11 +125,13 @@ def main():
     elif lossf == 'dice':
         criterion = DiceLoss()
     elif lossf == 'contour':
-        criterion = ContourLoss(device=device, mu=mu, normed=normed, withlen=withlen)
+        criterion = ContourLoss(device=device, mu=mu, alpha=alpha, beta=beta, normed=normed, withlen=withlen)
     elif lossf == 'contour-v3':
-        criterion = ContourLossV3(device=device, mu=mu, normed=normed, withlen=withlen)
+        criterion = ContourLossV3(device=device, mu=mu, alpha=alpha, beta=beta, normed=normed, withlen=withlen)
     elif lossf == 'contour-v2':
-        criterion = ContourLossV2(device=device, mu=mu, normed=normed, withlen=withlen)
+        criterion = ContourLossV2(device=device, mu=mu, alpha=alpha, beta=beta, normed=normed, withlen=withlen)
+    elif lossf == 'contour-v4':
+        criterion = ContourLossV4(device=device, mu=mu, normed=normed, withlen=withlen)
     elif lossf == 'focal':
         criterion = FocalLoss()
     else:
@@ -125,7 +145,9 @@ def main():
 
     # Saving History to csv
     header = ['epoch', 'train loss', 'train auc', 'train accuracy',
-              'val loss', 'val auc', 'val accuracy']
+              'val loss', 'val auc', 'val accuracy', 'val jaccard',
+              'val sensitivity', 'val specitivity', 'val precision',
+              'val f1', 'val pr auc']
     save_file_name = f"../history/{hash_code}/history.csv"
     save_dir = f"../history/{hash_code}"
 
@@ -136,7 +158,7 @@ def main():
     # Train
     if mode == 'train':
         print("Initializing Training!")
-        min_loss = 1000
+        min_loss = 1e9
         best_epoch = 0
         early_stop_count = 0
         max_count = 5
@@ -148,14 +170,26 @@ def main():
                   'Train acc:', train_acc
                   )
 
-            if (i+1) % 1 == 0:
-                val_loss, val_acc = validate_model(model, DRIVE_val_load, criterion, device)
+            if (i+1) % 5 == 0:
+                # val_loss, val_acc = validate_model(model, DRIVE_val_load, criterion, device)
+                # print('Epoch', str(i+1),
+                #       'Val loss:', val_loss,
+                #       'Val acc:', val_acc,
+                #       )
+
+                val_loss, val_auc, val_accuracy, val_jaccard, val_sensitivity,\
+                    val_specitivity, val_precision, val_f1, val_pr_auc = test_model(model, DRIVE_val_load, criterion,
+                                                                                    test_border_masks,
+                                                                                    f'{image_save_path}/{i+1}/', device)
+
                 print('Epoch', str(i+1),
                       'Val loss:', val_loss,
-                      'Val acc:', val_acc,
+                      'Val acc:', val_accuracy,
                       )
+
                 values = [i + 1, train_loss, train_acc,
-                          val_loss, val_acc]
+                          val_loss, val_auc, val_accuracy, val_jaccard, val_sensitivity,
+                          val_specitivity, val_precision, val_f1, val_pr_auc]
                 export_history(header, values, save_dir, save_file_name)
 
                 if val_loss < min_loss:
