@@ -7,9 +7,9 @@ python main.py --mode test\
 Mean auc:  0.9704751062687711
 Mean accuracy:  0.9538640803705426
 Mean jaccard:  0.6152207870769886
-Mean sensitivity:  0.6152207870769886
-Mean specitivity:  0.6152207870769886
-Mean precision:  0.6152207870769886
+Mean sensitivity:  0.837710184471127
+Mean specitivity:  0.9653233467863784
+Mean precision:  0.700699345827576
 <<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<
 
 
@@ -21,9 +21,9 @@ python main.py --mode test\
 Mean auc:  0.9692505630857858
 Mean accuracy:  0.9599866415670444
 Mean jaccard:  0.6245727376062621
-Mean sensitivity:  0.6245727376062621
-Mean specitivity:  0.6245727376062621
-Mean precision:  0.6245727376062621
+Mean sensitivity:  0.7561428328381328
+Mean specitivity:  0.9799336673532404
+Mean precision:  0.7852157749656052
 <<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<
 
 
@@ -35,9 +35,9 @@ python main.py --mode test\
 Mean auc:  0.9683523305874362
 Mean accuracy:  0.9596407131397817
 Mean jaccard:  0.622044634822409
-Mean sensitivity:  0.622044634822409
-Mean specitivity:  0.622044634822409
-Mean precision:  0.622044634822409
+Mean sensitivity:  0.7541251757941828
+Mean specitivity:  0.979784208667582
+Mean precision:  0.7833058782390175
 <<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<
 
 
@@ -49,13 +49,117 @@ python main.py --mode test\
 Mean auc:  0.9102452303750045
 Mean accuracy:  0.961343832479429
 Mean jaccard:  0.6384934719233697
-Mean sensitivity:  0.6384934719233697
-Mean specitivity:  0.6384934719233697
-Mean precision:  0.6384934719233697
+Mean sensitivity:  0.7753759583895514
+Mean specitivity:  0.9795842466046722
+Mean precision:  0.7866133862156458
 <<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<
 
 python main.py --mode test\
  --modelpath ../history/AUG20_narrow_adam_1e-05_contour/saved_models/model_epoch_150.pth\
  --lossf contour\
   --hashcode AUG20_narrow --gpu 2
+>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>
+Mean auc:  0.9699124720718345
+Mean accuracy:  0.9534371280339492
+Mean jaccard:  0.612191994271866
+Mean sensitivity:  0.8349666202380374
+Mean specitivity:  0.965131971202787
+Mean precision:  0.6987703261300988
+<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<
 
+============================================================================================
+python main.py --lossf bce --hashcode AUG23 --gpu 2 --mode train
+python main.py --lossf dice --hashcode AUG23 --gpu 2 --mode train
+python main.py --lossf contour --hashcode AUG23 --gpu 2 --mode train
+
+
+python main.py --mode test\
+ --modelpath ../history/AUG23_adam_1e-05_bce/saved_models/model_epoch_207.pth\
+ --lossf bce\
+  --hashcode AUG23 --gpu 2
+>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>
+AUC mean: 0.9690123279484906 - std: 5.649811182819027e-05
+ACCURACY mean: 0.9588874010246858 - std: 1.0728457032049633e-05
+SENS mean: 0.7614633550874714 - std: 0.0026028517040370845
+SPEC mean: 0.9782280380645937 - std: 1.1958824056333531e-05
+PRECISION mean: 0.7719852999037888 - std: 0.0011125989023810132
+F1 mean: 0.7648962699595735 - std: 0.000524089024290676
+PR AUC: 0.77735147842975 - std: 0.0004372596123268036
+<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<
+
+
+python main.py --mode test\
+ --modelpath ../history/AUG23_adam_1e-05_contour/saved_models/model_epoch_174.pth\
+ --lossf contour\
+  --hashcode AUG23 --gpu 2
+>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>
+AUC mean: 0.9702776136594975 - std: 5.1987109466086087e-05
+ACCURACY mean: 0.9494174688195417 - std: 5.416087046792714e-06
+SENS mean: 0.8496604246665626 - std: 0.0016396272490204423
+SPEC mean: 0.9592786119312819 - std: 2.4312315177242527e-05
+PRECISION mean: 0.6691049837358293 - std: 0.0012645053057577568
+F1 mean: 0.7471145985092786 - std: 0.00031843878577615914
+PR AUC: 0.7661067183294369 - std: 0.0002519550097554304
+<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<
+
+python main.py --mode test\
+ --modelpath ../history/AUG23_adam_1e-05_dice/saved_models/model_epoch_196.pth\
+ --lossf dice\
+  --hashcode AUG23 --gpu 2
+>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>
+AUC mean: 0.9038533704853379 - std: 0.00048117580533365835
+ACCURACY mean: 0.9621290042953995 - std: 1.1324579887023276e-05
+SENS mean: 0.7751558736960875 - std: 0.002806074080647562
+SPEC mean: 0.9804716249664701 - std: 1.2833244337677062e-05
+PRECISION mean: 0.7940818796733835 - std: 0.00099287501618425
+F1 mean: 0.7825472328351172 - std: 0.00041486892128251467
+PR AUC: 0.7946499115913235 - std: 0.0003168805415114506
+<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<
+
+python main.py --mode test --modelpath \
+../history/AUG28-v1-nolen-unnormed_adam_1e-05_contour/saved_models/model_epoch_120.pth \
+--lossf contour  \
+--hashcode AUG28-v1-nolen-unnormed --gpu 2
+>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>
+AUC mean: 0.9685290186195742 - std: 6.311039120137187e-05
+ACCURACY mean: 0.9603624323992135 - std: 1.1200246047458405e-05
+SENS mean: 0.7584586619331182 - std: 0.002483835818147571
+SPEC mean: 0.9801967124928772 - std: 1.0859318745892408e-05
+PRECISION mean: 0.7883510366122138 - std: 0.0009368630569734348
+F1 mean: 0.7713784658427124 - std: 0.00042910284698139843
+PR AUC: 0.7841958552952816 - std: 0.000329823087541335
+<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<
+
+
+python main.py --mode test\
+ --modelpath ../history/AUG23_withlen_mu1_adam_1e-05_contour/saved_models/model_epoch_140.pth\
+  --lossf contour\
+    --hashcode AUG23_withlen_mu1 --gpu 2
+>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>
+AUC mean: 0.9553116521658189 - std: 8.499726034685647e-05
+ACCURACY mean: 0.952380930432645 - std: 5.310338863936686e-06
+SENS mean: 0.8370448390866778 - std: 0.0015148289393680438
+SPEC mean: 0.9637731173415105 - std: 2.443890119117045e-05
+PRECISION mean: 0.6921317456675216 - std: 0.0013181477958189968
+F1 mean: 0.7561764520079152 - std: 0.0002734815913851813
+PR AUC: 0.7718839536357033 - std: 0.0002196732413549854
+<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<
+
+python main.py --mode test --modelpath \
+../history/SEP21_adam_1e-05_contour/saved_models/model_epoch_20.pth \
+--lossf contour  \
+--hashcode SEP21 --gpu 2
+>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>
+AUC mean: 0.965864405534323 - std: 6.302599893799169e-05
+ACCURACY mean: 0.9625599188790559 - std: 1.2201298144939296e-05
+SENS mean: 0.7346953168636519 - std: 0.0028267188156837087
+SPEC mean: 0.984922644957547 - std: 9.328603668034288e-06
+PRECISION mean: 0.8258629951210474 - std: 0.0009832224033757308
+F1 mean: 0.7756445671799292 - std: 0.0005533511901272026
+PR AUC: 0.7921241197337462 - std: 0.0003605344303403038
+<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<
+
+python main.py --mode test\
+ --modelpath ../history/AUG23_adam_1e-05_dice/saved_models/model_epoch_5.pth\
+ --lossf dice\
+  --hashcode AUG23 --gpu 2

@@ -88,6 +88,6 @@ class UNet1024(nn.Module):
         out = self.up1(out, down1)
 
         out = self.classify(out)
-        out = torch.sigmoid(out)
+        # out = torch.sigmoid(out)  # Sigmoid activation is used in the loss functions
         return out
 

@@ -11,6 +11,7 @@ class DiceLoss(nn.Module):
         super(DiceLoss, self).__init__()
 
     def forward(self, preds, targets):
+        preds = torch.sigmoid(preds)
         preds = preds.squeeze(1)
         targets = targets.squeeze(1)
         smooth = 1
@@ -30,6 +31,7 @@ class BinaryCrossEntropyLoss2d(nn.Module):
         self.bce_loss = nn.BCELoss()
 
     def forward(self, preds, targets):
+        preds = torch.sigmoid(preds)
         probs_flat = preds.view(-1)
         targets_flat = targets.view(-1)
         return self.bce_loss(probs_flat, targets_flat)
@@ -46,9 +48,9 @@ def get_length(phi, device):
     grad_y = F.conv2d(phi, conv_filter_y, padding=1)
 
     grad = (grad_x.pow(2) + grad_y.pow(2) + 1e-5).sqrt()
-    # dd = delta_dirac(phi - 0.5)
-    # return torch.mul(grad, dd).sum(-1).sum(-1)
-    return grad.sum(-1).sum(-1)
+    dd = delta_dirac(phi - 0.5)
+    return torch.mul(grad, dd).mean(-1).mean(-1)
+    # return grad.sum(-1).sum(-1)
 
 
 def get_length_v2(phi):
@@ -93,8 +95,10 @@ class ContourLoss(nn.Module):
         c1 = 1.0
         c2 = 0.0
         eps = 1e-7
-        force_inside = (preds - c1).pow(2).mul(targets).sum(-1).sum(-1)
-        force_outside = (preds - c2).pow(2).mul(1.0 - targets).sum(-1).sum(-1)
+        # force_inside = (preds - c1).pow(2).mul(targets).sum(-1).sum(-1)
+        # force_outside = (preds - c2).pow(2).mul(1.0 - targets).sum(-1).sum(-1)
+        force_inside = (preds - c1).pow(2).mul(targets).mean(-1).mean(-1)
+        force_outside = (preds - c2).pow(2).mul(1.0 - targets).mean(-1).mean(-1)
         if self.normed:
             force_inside = (force_inside + eps) / (targets.sum(-1).sum(-1) + eps)
             force_outside = (force_outside + eps) / ((1 - targets).sum(-1).sum(-1) + eps)

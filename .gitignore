@@ -3,6 +3,7 @@ DRIVE_datasets_training_testing/
 DRIVE/
 history/
 .idea/
+deploy.sh
 
 # Byte-compiled / optimized / DLL files
 __pycache__/
