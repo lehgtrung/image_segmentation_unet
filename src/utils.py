@@ -63,7 +63,8 @@ def metrics_calculator(masks, preds, mode_average=True, additional=False):
         jaccard_score = mtr.jaccard(batch_size, masks, predictions, mode_average)
         sens_score, spec_score, prec_score, f1_score = mtr.confusion_matrix(batch_size, masks, predictions, mode_average)
         pr_auc_score = mtr.precision_recall_auc(batch_size, masks, predictions, mode_average)
-        return roc_auc_score, accuracy_score, jaccard_score, sens_score, spec_score, prec_score, f1_score, pr_auc_score
+        iou_score = mtr.fast_hist(predictions, masks, 2)
+        return roc_auc_score, accuracy_score, jaccard_score, sens_score, spec_score, prec_score, f1_score, pr_auc_score, iou_score
     return accuracy_score
 
 
@@ -167,7 +168,7 @@ def test_model(model, data_test, criterion, test_border_masks, dirname, device):
     # pred_imgs = (pred_imgs >= 0.5).astype('int')
 
     # After calculating best cut off, recalculate other metrics
-    (_, auc), accuracy, jaccard, sensitivity, specitivity, precision, f1, pr_auc \
+    (_, auc), accuracy, jaccard, sensitivity, specitivity, precision, f1, pr_auc, iou \
         = metrics_calculator(gtruth_masks, pred_imgs, mode_average=False, additional=True)
 
     loss = criterion(torch.from_numpy(gtruth_masks).float().to(device), torch.from_numpy(pred_imgs).float().to(device))
@@ -176,7 +177,7 @@ def test_model(model, data_test, criterion, test_border_masks, dirname, device):
     visualize(group_images(pred_imgs, 1), dirname + "all_predictions")
     # visualize(group_images(gtruth_masks, 1), dirname + "all_masks")
 
-    return loss, auc, accuracy, jaccard, sensitivity, specitivity, precision, f1, pr_auc
+    return loss, auc, accuracy, jaccard, sensitivity, specitivity, precision, f1, pr_auc, iou
 
 
 def test_model_img(model, data_test, test_border_masks, dirname, device):

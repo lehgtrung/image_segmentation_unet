@@ -4,6 +4,7 @@ from utils import *
 from dataset import DRIVEDataset
 from losses import ContourLoss, ContourLossV3, ContourLossV2, ContourLossV4, BinaryCrossEntropyLoss2d, DiceLoss, FocalLoss
 from unet import UNet1024
+from fcn32 import FCN8s
 import argparse
 import warnings
 from sklearn.exceptions import UndefinedMetricWarning
@@ -38,12 +39,14 @@ def arg_parse():
     parser.add_argument('--hashcode', help='Hashcode for experiments', dest='hashcode', default='', required=False)
     parser.add_argument('--lr', help='Learning rate', dest='lr', default=1e-5, type=float, required=False)
     parser.add_argument('--lossf', help='Loss type', dest='lossf', default='bce')
-    parser.add_argument('--gpu', help='Which gpu', dest='gpu', required=True)
+    parser.add_argument('--gpu', help='Which gpu', dest='gpu', required=False, default='0')
     parser.add_argument('--withlen', help='With contour len', dest='withlen', default='false', required=False)
     parser.add_argument('--mu', help='Value of mu', dest='mu', required=False, default=1, type=float)
     parser.add_argument('--alpha', help='Value of alpha', dest='alpha', required=False, default=1, type=float)
     parser.add_argument('--beta', help='Value of beta', dest='beta', required=False, default=1, type=float)
     parser.add_argument('--normed', help='Normalized contour', dest='normed', required=False, default='true')
+    parser.add_argument('--batchsize', help='Batch size', dest='batchsize', required=False, default=16, type=int)
+    parser.add_argument('--model', help='Model type FCN or Unet', dest='model', required=False, default='fcn')
     args = parser.parse_args()
     return args
 
@@ -63,6 +66,8 @@ def main():
     alpha = args.alpha
     beta = args.beta
     modelpath = args.modelpath
+    DEFAULT_BATCHSIZE = args.batchsize
+    modeltype = args.model
     if mode == 'test' and not modelpath:
         raise ValueError("Need model path for testing!!")
 
@@ -82,7 +87,7 @@ def main():
         # DRIVE_valid = DRIVE_train.get_validation_dataset()
         DRIVE_train_load = \
             torch.utils.data.DataLoader(dataset=DRIVE_train,
-                                        batch_size=128, shuffle=True)
+                                        batch_size=DEFAULT_BATCHSIZE, shuffle=True)
 
         # DRIVE_val_load = \
         #     torch.utils.data.DataLoader(dataset=DRIVE_valid,
@@ -98,7 +103,7 @@ def main():
         )
         DRIVE_val_load = \
             torch.utils.data.DataLoader(dataset=DRIVE_valid,
-                                        batch_size=128, shuffle=False)
+                                        batch_size=DEFAULT_BATCHSIZE, shuffle=False)
 
     else:
         DRIVE_test = DRIVEDataset(
@@ -112,13 +117,19 @@ def main():
         )
         DRIVE_test_load = \
             torch.utils.data.DataLoader(dataset=DRIVE_test,
-                                        batch_size=128, shuffle=False)
+                                        batch_size=DEFAULT_BATCHSIZE, shuffle=False)
 
     shape = (1, 48, 48)
     if torch.cuda.is_available():
-        model = UNet1024(shape).to(device)
+        if modeltype.lower() == 'fcn':
+            model = FCN8s(n_class=1).to(device)
+        else:
+            model = UNet1024(shape).to(device)
     else:
-        model = UNet1024(shape)
+        if modeltype.lower() == 'fcn':
+            model = FCN8s(n_class=1)
+        else:
+            model = UNet1024(shape)
 
     if lossf == 'bce':
         criterion = BinaryCrossEntropyLoss2d()
@@ -178,9 +189,9 @@ def main():
                 #       )
 
                 val_loss, val_auc, val_accuracy, val_jaccard, val_sensitivity,\
-                    val_specitivity, val_precision, val_f1, val_pr_auc = test_model(model, DRIVE_val_load, criterion,
-                                                                                    test_border_masks,
-                                                                                    f'{image_save_path}/{i+1}/', device)
+                    val_specitivity, val_precision, val_f1, val_pr_auc, val_iou = test_model(model, DRIVE_val_load, criterion,
+                                                                                             test_border_masks,
+                                                                                             f'{image_save_path}/{i+1}/', device)
 
                 print('Epoch', str(i+1),
                       'Val loss:', val_loss,
@@ -189,7 +200,7 @@ def main():
 
                 values = [i + 1, train_loss, train_acc,
                           val_loss, val_auc, val_accuracy, val_jaccard, val_sensitivity,
-                          val_specitivity, val_precision, val_f1, val_pr_auc]
+                          val_specitivity, val_precision, val_f1, val_pr_auc, val_iou]
                 export_history(header, values, save_dir, save_file_name)
 
                 if val_loss < min_loss:
@@ -224,6 +235,7 @@ def main():
         print(">>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>")
         print('AUC mean: {} - std: {}'.format(*mean_std(test_auc)))
         print('ACCURACY mean: {} - std: {}'.format(*mean_std(test_accuracy)))
+        print('JACCARD mean: {} - std: {}'.format(*mean_std(test_jaccard)))
         print('SENS mean: {} - std: {}'.format(*mean_std(test_sensitivity)))
         print('SPEC mean: {} - std: {}'.format(*mean_std(test_specitivity)))
         print('PRECISION mean: {} - std: {}'.format(*mean_std(test_precision)))

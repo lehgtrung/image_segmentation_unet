@@ -16,9 +16,23 @@ def standardize_for_metrics(masks, preds):
         preds = preds.detach().cpu().numpy()
         masks = masks.detach().cpu().numpy()
     else:
-        preds = preds.numpy()
-        masks = masks.numpy()
+        preds = preds.detach().numpy()
+        masks = masks.detach().numpy()
     return batch_size, masks, preds
+
+
+def fast_hist(label_pred, label_true, num_classes):
+    mask = (label_true >= 0) & (label_true < num_classes)
+    hist = np.bincount(
+        num_classes * label_true[mask].astype(int) +
+        label_pred[mask], minlength=num_classes ** 2).reshape(num_classes, num_classes)
+    return hist
+    acc = np.diag(hist).sum() / hist.sum()
+    acc_cls = np.diag(hist) / hist.sum(axis=1)
+    acc_cls = np.nanmean(acc_cls)
+    iu = np.diag(hist) / (hist.sum(axis=1) + hist.sum(axis=0) - np.diag(hist))
+    mean_iu = np.nanmean
+    return mean_iu
 
 
 def roc_auc(batch_size, masks, preds, mode_average=True):
